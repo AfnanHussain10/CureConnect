@@ -48,7 +48,7 @@ const AppointmentManagement = () => {
   return (
     <div className="container mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-8">
-        {user?.type === 'doctor' ? 'Manage Appointments' : 'My Appointments'}
+        {user?.role === 'doctor' ? 'Manage Appointments' : 'My Appointments'}
       </h1>
       
       <Tabs defaultValue="upcoming" className="w-full">
@@ -63,7 +63,7 @@ const AppointmentManagement = () => {
               <div className="text-gray-500 my-10">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                 <p className="text-lg">No upcoming appointments found.</p>
-                {user?.type === 'patient' && (
+                {user?.role === 'patient' && (
                   <Button className="mt-4" onClick={() => window.location.href = '/doctor-list'}>
                     Book an Appointment
                   </Button>
@@ -85,9 +85,9 @@ const AppointmentManagement = () => {
                       
                       <div className="mb-2">
                         <span className="text-gray-500 mr-2">
-                          {user?.type === 'doctor' ? 'Patient:' : 'Doctor:'}
+                          {user?.role === 'doctor' ? 'Patient:' : 'Doctor:'}
                         </span>
-                        <span className="font-medium">{user?.type === 'doctor' ? appointment.patientName : appointment.doctorName}</span>
+                        <span className="font-medium">{user?.role === 'doctor' ? appointment.patientName : appointment.doctorName}</span>
                       </div>
                       
                       <div className="mb-4">
@@ -101,7 +101,7 @@ const AppointmentManagement = () => {
                     </div>
                     
                     <div className="flex flex-col justify-center space-y-2">
-                      {user?.type === 'doctor' && appointment.status === 'pending' && (
+                      {user?.role === 'doctor' && appointment.status === 'pending' && (
                         <>
                           <Button 
                             variant="default" 
@@ -123,7 +123,7 @@ const AppointmentManagement = () => {
                         </>
                       )}
                       
-                      {user?.type === 'doctor' && appointment.status === 'confirmed' && (
+                      {user?.role === 'doctor' && appointment.status === 'confirmed' && (
                         <Button 
                           variant="default"
                           onClick={() => handleComplete(appointment.id)}
@@ -133,7 +133,7 @@ const AppointmentManagement = () => {
                         </Button>
                       )}
                       
-                      {user?.type === 'patient' && appointment.status === 'confirmed' && (
+                      {user?.role === 'patient' && appointment.status === 'confirmed' && (
                         <Button 
                           variant="outline" 
                           onClick={() => handleStatusChange(appointment.id, 'cancelled')}
@@ -172,9 +172,9 @@ const AppointmentManagement = () => {
                       
                       <div className="mb-2">
                         <span className="text-gray-500 mr-2">
-                          {user?.type === 'doctor' ? 'Patient:' : 'Doctor:'}
+                          {user?.role === 'doctor' ? 'Patient:' : 'Doctor:'}
                         </span>
-                        <span className="font-medium">{user?.type === 'doctor' ? appointment.patientName : appointment.doctorName}</span>
+                        <span className="font-medium">{user?.role === 'doctor' ? appointment.patientName : appointment.doctorName}</span>
                       </div>
                       
                       <div className="mb-4">
@@ -196,7 +196,7 @@ const AppointmentManagement = () => {
                     </div>
                     
                     <div className="flex items-center mt-4 md:mt-0">
-                      {appointment.completed && user?.type === 'doctor' && (
+                      {appointment.completed && user?.role === 'doctor' && (
                         <Button variant="outline" onClick={() => window.location.href = `/prescriptions?appointment=${appointment.id}`}>
                           <FileText className="h-4 w-4 mr-2" />
                           View/Add Prescription

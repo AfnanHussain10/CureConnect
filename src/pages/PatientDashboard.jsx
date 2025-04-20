@@ -1,105 +1,97 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Search, FileText, User, Star, Download, Upload, Clock } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from '../components/ui/use-toast';
+import * as api from '../services/api';
 
 function PatientDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState('appointments');
   const navigate = useNavigate();
-
-  // Sample data for UI demonstration
-  const upcomingAppointments = [
-    {
-      id: 1,
-      doctorName: "Dr. Sarah Johnson",
-      doctorSpecialization: "Cardiologist",
-      date: "May 15, 2025",
-      time: "10:00 AM",
-      status: "confirmed",
-      image: "https://randomuser.me/api/portraits/women/45.jpg"
-    },
-    {
-      id: 2,
-      doctorName: "Dr. Michael Chen",
-      doctorSpecialization: "Dermatologist",
-      date: "May 20, 2025",
-      time: "2:30 PM",
-      status: "pending",
-      image: "https://randomuser.me/api/portraits/men/32.jpg"
+  const location = useLocation();
+  
+  // State for real data
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [pastAppointments, setPastAppointments] = useState([]);
+  const [medicalReports, setMedicalReports] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Show success message if redirected from appointment booking
+  useEffect(() => {
+    if (location.state?.message) {
+      toast({
+        title: "Success",
+        description: location.state.message,
+      });
+      // Clear the message to prevent showing it again on refresh
+      navigate(location.pathname, { replace: true });
     }
-  ];
+  }, [location]);
 
-  const pastAppointments = [
-    {
-      id: 101,
-      doctorName: "Dr. Emma Rodriguez",
-      doctorSpecialization: "Pediatrician",
-      date: "April 28, 2025",
-      time: "11:15 AM",
-      status: "completed",
-      hasReview: true,
-      rating: 5,
-      reviewText: "Dr. Rodriguez was amazing with my child. Very patient and thorough.",
-      image: "https://randomuser.me/api/portraits/women/68.jpg"
-    },
-    {
-      id: 102,
-      doctorName: "Dr. James Wilson",
-      doctorSpecialization: "Neurologist",
-      date: "April 15, 2025",
-      time: "9:00 AM",
-      status: "completed",
-      hasReview: false,
-      image: "https://randomuser.me/api/portraits/men/29.jpg"
-    }
-  ];
-
-  const medicalReports = [
-    {
-      id: 1,
-      name: "Blood Test Results",
-      date: "April 20, 2025",
-      type: "PDF",
-      size: "1.2 MB"
-    },
-    {
-      id: 2,
-      name: "Chest X-Ray",
-      date: "March 15, 2025",
-      type: "Image",
-      size: "3.8 MB"
-    },
-    {
-      id: 3,
-      name: "Medical History",
-      date: "January 10, 2025",
-      type: "PDF",
-      size: "850 KB"
-    }
-  ];
-
-  const prescriptions = [
-    {
-      id: 1,
-      doctorName: "Dr. Sarah Johnson",
-      date: "April 28, 2025",
-      medications: [
-        { name: "Amoxicillin", dosage: "500mg", frequency: "3 times a day", duration: "7 days" },
-        { name: "Ibuprofen", dosage: "400mg", frequency: "As needed", duration: "For pain" }
-      ]
-    },
-    {
-      id: 2,
-      doctorName: "Dr. James Wilson",
-      date: "April 15, 2025",
-      medications: [
-        { name: "Lisinopril", dosage: "10mg", frequency: "Once daily", duration: "30 days" },
-        { name: "Aspirin", dosage: "81mg", frequency: "Once daily", duration: "Ongoing" }
-      ]
-    }
-  ];
+  // Fetch appointments, reports, and prescriptions when user is logged in
+  useEffect(() => {
+    const fetchData = async () => {
+      if (user && token) {
+        setLoading(true);
+        try {
+          // Fetch appointments
+          const appointmentsData = await api.getAppointments(token, user.id, 'patient');
+          
+          // Split appointments into upcoming and past
+          const upcoming = [];
+          const past = [];
+          
+          appointmentsData.forEach(appointment => {
+            // Convert appointment date to Date object for comparison
+            const appointmentDate = new Date(appointment.date);
+            const today = new Date();
+            
+            if (appointment.completed || appointment.status === 'cancelled' || appointmentDate < today) {
+              past.push(appointment);
+            } else {
+              upcoming.push(appointment);
+            }
+          });
+          
+          setUpcomingAppointments(upcoming);
+          setPastAppointments(past);
+          
+          // Fetch medical reports
+          try {
+            const reportsData = await api.getReports({ patientId: user.id }, token);
+            setMedicalReports(reportsData);
+          } catch (error) {
+            console.error('Failed to fetch reports:', error);
+            // Don't show error toast for reports as they might not be critical
+          }
+          
+          // Fetch prescriptions
+          try {
+            const prescriptionsData = await api.getPrescriptions({ patientId: user.id }, token);
+            setPrescriptions(prescriptionsData);
+          } catch (error) {
+            console.error('Failed to fetch prescriptions:', error);
+            // Don't show error toast for prescriptions as they might not be critical
+          }
+          
+        } catch (error) {
+          console.error('Failed to fetch data:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load your data. Please try again later.",
+            variant: "destructive",
+          });
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    fetchData();
+  }, [user, token]);
 
   // If user is not logged in, show a message to login
   if (!user) {
@@ -115,10 +107,37 @@ function PatientDashboard() {
     );
   }
 
-  const handleCancelAppointment = (appointmentId) => {
-    // In a real app, this would make an API call to cancel the appointment
-    console.log(`Cancelling appointment ${appointmentId}`);
-    alert(`Appointment ${appointmentId} has been cancelled.`);
+  const handleCancelAppointment = async (appointmentId) => {
+    try {
+      await api.updateAppointmentStatus(appointmentId, 'cancelled', token);
+      
+      // Update local state
+      setUpcomingAppointments(prev => {
+        const updated = prev.filter(app => app._id !== appointmentId);
+        return updated;
+      });
+      
+      setPastAppointments(prev => {
+        const cancelled = upcomingAppointments.find(app => app._id === appointmentId);
+        if (cancelled) {
+          cancelled.status = 'cancelled';
+          return [...prev, cancelled];
+        }
+        return prev;
+      });
+      
+      toast({
+        title: "Appointment Cancelled",
+        description: "Your appointment has been cancelled successfully.",
+      });
+    } catch (error) {
+      console.error('Failed to cancel appointment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel appointment. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRescheduleAppointment = (appointmentId) => {
@@ -127,18 +146,91 @@ function PatientDashboard() {
     navigate(`/reschedule-appointment/${appointmentId}`);
   };
 
-  const handleSubmitReview = (appointmentId, rating, review) => {
-    // In a real app, this would submit the review to an API
-    console.log(`Submitting review for appointment ${appointmentId}`, { rating, review });
-    alert('Thank you for your feedback!');
+  const handleSubmitReview = async (appointmentId, rating, review) => {
+    try {
+      // This would be replaced with a real API call when the review endpoint is available
+      // await api.submitReview(appointmentId, { rating, review }, token);
+      
+      // For now, just show a success message
+      toast({
+        title: "Review Submitted",
+        description: "Thank you for your feedback!",
+      });
+      
+      // Update local state to show the review was submitted
+      setPastAppointments(prev => {
+        return prev.map(app => {
+          if (app._id === appointmentId) {
+            return { ...app, hasReview: true, rating, reviewText: review };
+          }
+          return app;
+        });
+      });
+    } catch (error) {
+      console.error('Failed to submit review:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit review. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleUploadReport = (e) => {
+  const handleUploadReport = async (e) => {
     e.preventDefault();
-    // In a real app, this would upload the file to a server
-    alert('Report uploaded successfully!');
+    const fileInput = e.target.querySelector('input[type="file"]');
+    
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select a file to upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('patientId', user.id);
+    formData.append('name', file.name);
+    formData.append('type', file.type);
+    
+    try {
+      const newReport = await api.createReport(formData, token);
+      
+      // Update local state
+      setMedicalReports(prev => [newReport, ...prev]);
+      
+      // Reset form
+      e.target.reset();
+      
+      toast({
+        title: "Report Uploaded",
+        description: "Your medical report has been uploaded successfully.",
+      });
+    } catch (error) {
+      console.error('Failed to upload report:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload report. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
+  // Show loading state
+  if (loading && user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}

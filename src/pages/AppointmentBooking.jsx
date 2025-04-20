@@ -1,17 +1,41 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Calendar, Clock, User, FileText, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/ui/use-toast';
+import * as api from '../services/api';
 
 function AppointmentBooking() {
   const { doctorId } = useParams();
   const navigate = useNavigate();
-  const { user, doctors, addAppointment } = useAuth();
+  const { user, token, createAppointment } = useAuth();
+  const [doctor, setDoctor] = useState(null);
+  const [loading, setLoading] = useState(true);
   
-  // Find the doctor by ID
-  const doctor = doctors.find(d => d.id === doctorId);
+  // Fetch doctor data by ID
+  useEffect(() => {
+    const fetchDoctor = async () => {
+      try {
+        setLoading(true);
+        const doctorData = await api.getDoctorById(doctorId);
+        setDoctor(doctorData);
+      } catch (error) {
+        console.error('Failed to fetch doctor:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load doctor information",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (doctorId) {
+      fetchDoctor();
+    }
+  }, [doctorId]);
   
   // Form state
   const [appointmentData, setAppointmentData] = useState({
@@ -53,7 +77,7 @@ function AppointmentBooking() {
   };
   
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!appointmentData.date || !appointmentData.time) {
@@ -65,9 +89,9 @@ function AppointmentBooking() {
       return;
     }
     
-    // Add appointment
-    const newAppointment = addAppointment({
-      doctorId: doctor.id,
+    // Create appointment using API
+    const success = await createAppointment({
+      doctorId: doctor._id,
       doctorName: doctor.name,
       patientId: user.id,
       patientName: user.name,
@@ -77,13 +101,27 @@ function AppointmentBooking() {
       notes: appointmentData.notes
     });
     
-    // Navigate to appointments page
-    navigate('/appointments', { 
-      state: { 
-        message: 'Appointment booked successfully. The doctor will review your request shortly.' 
-      }
-    });
+    if (success) {
+      // Navigate to appointments page
+      navigate('/appointments', { 
+        state: { 
+          message: 'Appointment booked successfully. The doctor will review your request shortly.' 
+        }
+      });
+    }
   };
+  
+  // If loading, show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading doctor information...</p>
+        </div>
+      </div>
+    );
+  }
   
   // If doctor not found, show error
   if (!doctor) {
@@ -102,7 +140,7 @@ function AppointmentBooking() {
   }
   
   // If user not logged in or not a patient, redirect to login
-  if (!user || user.type !== 'patient') {
+  if (!user || user.role !== 'patient') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center p-8 bg-white rounded-lg shadow-md">
