@@ -191,6 +191,31 @@ export const updatePrescription = async (id, prescriptionData, token) => {
 };
 
 // Patient API calls
+export const getAllPatients = async (token) => {
+  const response = await fetch(`${API_BASE_URL}/patients`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch patients');
+  return data;
+};
+
+// Reviews API calls
+export const getReviews = async (token) => {
+  const response = await fetch(`${API_BASE_URL}/reviews`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch reviews');
+  return data;
+};
+
 export const getPatientById = async (id, token) => {
   const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
     headers: { 

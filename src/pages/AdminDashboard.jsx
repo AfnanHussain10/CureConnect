@@ -1,175 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Users, ChevronDown, User, Shield, BarChart, Search, Check, X, Edit, Calendar, Star } from 'lucide-react';
+import * as api from '../services/api';
 
 function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  
-  // Sample data for UI demonstration
-  const stats = {
-    totalDoctors: 48,
-    totalPatients: 1256,
-    totalAppointments: 327,
-    pendingDoctorApprovals: 5
-  };
-  
-  const recentDoctors = [
-    {
-      id: 1,
-      name: "Dr. Sarah Johnson",
-      specialization: "Cardiologist",
-      email: "sarah.johnson@example.com",
-      status: "active",
-      image: "https://randomuser.me/api/portraits/women/45.jpg"
-    },
-    {
-      id: 2,
-      name: "Dr. Michael Chen",
-      specialization: "Dermatologist",
-      email: "michael.chen@example.com",
-      status: "active",
-      image: "https://randomuser.me/api/portraits/men/32.jpg"
-    },
-    {
-      id: 3,
-      name: "Dr. Emily Rodriguez",
-      specialization: "Pediatrician",
-      email: "emily.rodriguez@example.com",
-      status: "pending",
-      image: "https://randomuser.me/api/portraits/women/68.jpg"
-    }
-  ];
-  
-  const recentPatients = [
-    {
-      id: 1,
-      name: "John Smith",
-      email: "john.smith@example.com",
-      registrationDate: "May 2, 2025",
-      appointmentsCount: 3,
-      image: "https://randomuser.me/api/portraits/men/75.jpg"
-    },
-    {
-      id: 2,
-      name: "Maria Garcia",
-      email: "maria.garcia@example.com",
-      registrationDate: "May 1, 2025",
-      appointmentsCount: 1,
-      image: "https://randomuser.me/api/portraits/women/62.jpg"
-    },
-    {
-      id: 3,
-      name: "David Kim",
-      email: "david.kim@example.com",
-      registrationDate: "April 29, 2025",
-      appointmentsCount: 0,
-      image: "https://randomuser.me/api/portraits/men/42.jpg"
-    }
-  ];
-  
-  const recentAppointments = [
-    {
-      id: 1,
-      patientName: "John Smith",
-      doctorName: "Dr. Sarah Johnson",
-      date: "May 15, 2025",
-      time: "10:00 AM",
-      status: "confirmed"
-    },
-    {
-      id: 2,
-      patientName: "Maria Garcia",
-      doctorName: "Dr. Michael Chen",
-      date: "May 20, 2025",
-      time: "2:30 PM",
-      status: "pending"
-    },
-    {
-      id: 3,
-      patientName: "David Kim",
-      doctorName: "Dr. Emily Rodriguez",
-      date: "May 18, 2025",
-      time: "9:15 AM",
-      status: "cancelled"
-    }
-  ];
-  
-  const pendingDoctors = [
-    {
-      id: 101,
-      name: "Dr. Robert Miller",
-      specialization: "Neurologist",
-      email: "robert.miller@example.com",
-      submissionDate: "May 5, 2025",
-      image: "https://randomuser.me/api/portraits/men/55.jpg"
-    },
-    {
-      id: 102,
-      name: "Dr. Jennifer Lee",
-      specialization: "Orthopedist",
-      email: "jennifer.lee@example.com",
-      submissionDate: "May 4, 2025",
-      image: "https://randomuser.me/api/portraits/women/41.jpg"
-    },
-    {
-      id: 103,
-      name: "Dr. James Wilson",
-      specialization: "Ophthalmologist",
-      email: "james.wilson@example.com",
-      submissionDate: "May 3, 2025",
-      image: "https://randomuser.me/api/portraits/men/29.jpg"
-    },
-    {
-      id: 104,
-      name: "Dr. Amanda Brown",
-      specialization: "Endocrinologist",
-      email: "amanda.brown@example.com",
-      submissionDate: "May 3, 2025",
-      image: "https://randomuser.me/api/portraits/women/37.jpg"
-    },
-    {
-      id: 105,
-      name: "Dr. Thomas White",
-      specialization: "Gastroenterologist",
-      email: "thomas.white@example.com",
-      submissionDate: "May 2, 2025",
-      image: "https://randomuser.me/api/portraits/men/12.jpg"
-    }
-  ];
-  
-  const patientReviews = [
-    {
-      id: 1,
-      patientName: "John Smith",
-      doctorName: "Dr. Sarah Johnson",
-      rating: 5,
-      comment: "Dr. Johnson was very professional and caring. She took the time to explain everything thoroughly.",
-      date: "May 3, 2025",
-      status: "approved"
-    },
-    {
-      id: 2,
-      patientName: "Maria Garcia",
-      doctorName: "Dr. Michael Chen",
-      rating: 4,
-      comment: "Good experience overall. Would recommend Dr. Chen to others.",
-      date: "May 2, 2025",
-      status: "approved"
-    },
-    {
-      id: 3,
-      patientName: "David Kim",
-      doctorName: "Dr. Emily Rodriguez",
-      rating: 2,
-      comment: "I had to wait for an hour past my appointment time. The doctor seemed rushed when she finally saw me.",
-      date: "May 1, 2025",
-      status: "flagged"
-    }
-  ];
-  
-  // If user is not logged in, show a message to login
+  const [stats, setStats] = useState({ totalDoctors: 0, totalPatients: 0, totalAppointments: 0, pendingDoctorApprovals: 0 });
+  const [recentDoctors, setRecentDoctors] = useState([]);
+  const [recentPatients, setRecentPatients] = useState([]);
+  const [recentAppointments, setRecentAppointments] = useState([]);
+  const [pendingDoctors, setPendingDoctors] = useState([]);
+  const [patientReviews, setPatientReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user || !token) return;
+      setLoading(true);
+      try {
+        // Fetch all doctors
+        const doctors = await api.getAllDoctors(token);
+        setRecentDoctors(doctors.slice(-3).reverse());
+        setStats(prev => ({ ...prev, totalDoctors: doctors.length }));
+        // Pending doctors (status === 'pending')
+        const pending = doctors.filter(d => d.status === 'pending');
+        setPendingDoctors(pending);
+        setStats(prev => ({ ...prev, pendingDoctorApprovals: pending.length }));
+        // Fetch all patients
+        const patients = await api.getAllPatients(token);
+        setRecentPatients(patients.slice(-3).reverse());
+        setStats(prev => ({ ...prev, totalPatients: patients.length }));
+        // Fetch all appointments
+        const appointments = await api.getAppointments(token, '', 'admin');
+        setRecentAppointments(appointments.slice(-3).reverse());
+        setStats(prev => ({ ...prev, totalAppointments: appointments.length }));
+        // Fetch all reviews
+        const reviews = await api.getReviews(token);
+        setPatientReviews(reviews);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, [user, token]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -182,29 +60,47 @@ function AdminDashboard() {
       </div>
     );
   }
-  
-  const handleApproveDoctorRegistration = (doctorId) => {
-    // In a real app, this would make an API call to approve the doctor
-    console.log(`Approving doctor ${doctorId}`);
-    alert(`Doctor ${doctorId} has been approved.`);
+
+  const handleApproveDoctorRegistration = async (doctorId) => {
+    try {
+      await api.updateDoctorStatus(doctorId, 'active', token);
+      setPendingDoctors(prev => prev.filter(d => d._id !== doctorId));
+      setStats(prev => ({ ...prev, pendingDoctorApprovals: prev.pendingDoctorApprovals - 1 }));
+      alert(`Doctor ${doctorId} has been approved.`);
+    } catch (error) {
+      alert('Failed to approve doctor.');
+    }
   };
-  
-  const handleRejectDoctorRegistration = (doctorId) => {
-    // In a real app, this would make an API call to reject the doctor
-    console.log(`Rejecting doctor ${doctorId}`);
-    alert(`Doctor ${doctorId} has been rejected.`);
+
+  const handleRejectDoctorRegistration = async (doctorId) => {
+    try {
+      await api.updateDoctorStatus(doctorId, 'rejected', token);
+      setPendingDoctors(prev => prev.filter(d => d._id !== doctorId));
+      setStats(prev => ({ ...prev, pendingDoctorApprovals: prev.pendingDoctorApprovals - 1 }));
+      alert(`Doctor ${doctorId} has been rejected.`);
+    } catch (error) {
+      alert('Failed to reject doctor.');
+    }
   };
-  
-  const handleDeleteReview = (reviewId) => {
-    // In a real app, this would make an API call to delete the review
-    console.log(`Deleting review ${reviewId}`);
-    alert(`Review ${reviewId} has been deleted.`);
+
+  const handleDeleteReview = async (reviewId) => {
+    try {
+      await api.deleteReview(reviewId, token);
+      setPatientReviews(prev => prev.filter(r => r._id !== reviewId));
+      alert(`Review ${reviewId} has been deleted.`);
+    } catch (error) {
+      alert('Failed to delete review.');
+    }
   };
-  
-  const handleApproveReview = (reviewId) => {
-    // In a real app, this would make an API call to approve the flagged review
-    console.log(`Approving review ${reviewId}`);
-    alert(`Review ${reviewId} has been approved.`);
+
+  const handleApproveReview = async (reviewId) => {
+    try {
+      await api.updateReviewStatus(reviewId, 'approved', token);
+      setPatientReviews(prev => prev.map(r => r._id === reviewId ? { ...r, status: 'approved' } : r));
+      alert(`Review ${reviewId} has been approved.`);
+    } catch (error) {
+      alert('Failed to approve review.');
+    }
   };
 
   return (
