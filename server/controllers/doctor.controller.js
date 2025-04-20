@@ -121,3 +121,28 @@ export const updateAvailability = async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 };
+import Doctor from '../models/Doctor.model.js';
+
+export const searchDoctors = async (req, res) => {
+  try {
+    const { specialization, location, availability, rating } = req.query;
+    
+    let query = {};
+    if (specialization) query.specialization = specialization;
+    if (location) query.location = location;
+    if (availability) query.isAvailable = true;
+    if (rating) query.rating = { $gte: parseFloat(rating) };
+
+    const doctors = await Doctor.find(query).select('-password');
+    
+    res.status(200).json({
+      success: true,
+      data: doctors
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

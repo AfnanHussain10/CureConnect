@@ -232,3 +232,39 @@ export const deleteAppointment = async (req, res) => {
     });
   }
 };
+import Appointment from '../models/Appointment.model.js';
+import Doctor from '../models/Doctor.model.js';
+
+export const submitFeedback = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { rating, comment } = req.body;
+
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    appointment.feedback = { rating, comment };
+    await appointment.save();
+
+    // Update doctor's average rating
+    const doctor = await Doctor.findById(appointment.doctorId);
+    doctor.rating = (doctor.rating * doctor.reviewCount + rating) / (doctor.reviewCount + 1);
+    doctor.reviewCount += 1;
+    await doctor.save();
+
+    res.status(200).json({
+      success: true,
+      data: appointment
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
