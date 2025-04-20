@@ -8,6 +8,7 @@ import sendEmail from '../utils/sendEmail.js';
 export const register = async (req, res) => {
   try {
     const { role, ...userData } = req.body;
+    console.log('Register attempt:', { role, userData });
 
     // Validate role
     if (!['patient', 'doctor'].includes(role)) {
@@ -17,10 +18,14 @@ export const register = async (req, res) => {
     // Create user based on role
     let user;
     if (role === 'doctor') {
+      console.log('Creating Doctor with data:', { ...userData, role: 'doctor' });
       user = await Doctor.create({ ...userData, role: 'doctor' });
     } else {
+      console.log('Creating Patient with data:', { ...userData, role: 'patient' });
       user = await Patient.create({ ...userData, role: 'patient' });
     }
+
+    console.log('User created:', user);
 
     // Generate JWT token
     const token = user.getSignedJwtToken();
@@ -36,9 +41,11 @@ export const register = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Register error:', error);
     res.status(400).json({
       success: false,
-      message: error.message
+      message: error.message,
+      details: error.errors // Include validation errors if any
     });
   }
 };
@@ -47,35 +54,43 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', { email, password });
 
-    // Validate email & password
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: 'Please provide email and password',
       });
     }
 
-    // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    let user = await User.findOne({ email }).select('+password');
+    console.log('User found:', user ? { id: user._id, email: user.email, role: user.role, userType: user.userType, password: user.password } : null);
+
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid credentials',
       });
     }
 
-    // Check if password matches
+    if (user.userType === 'Doctor') {
+      user = await Doctor.findById(user._id).select('+password');
+    } else if (user.userType === 'Patient') {
+      user = await Patient.findById(user._id).select('+password');
+    }
+
     const isMatch = await user.matchPassword(password);
+    console.log('Password match:', isMatch);
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid credentials',
       });
     }
 
-    // Generate token
     const token = user.getSignedJwtToken();
+    console.log('Token generated:', token);
 
     res.status(200).json({
       success: true,
@@ -84,13 +99,14 @@ export const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };

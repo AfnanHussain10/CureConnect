@@ -1,19 +1,22 @@
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // Auth API calls
-export const loginUser = async (email, password, role) => {
+export const loginUser = async (email, password) => {
+  console.log('Login request:', { email, password });
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, role })
+    body: JSON.stringify({ email, password }),
   });
-  
+
   const data = await response.json();
+  console.log('Response:', data);
   if (!response.ok) throw new Error(data.message || 'Login failed');
   return data;
 };
 
 export const registerUser = async (userData, role) => {
+  console.log('Register request:', userData);
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -21,6 +24,7 @@ export const registerUser = async (userData, role) => {
   });
   
   const data = await response.json();
+  console.log('Register response:', data);
   if (!response.ok) throw new Error(data.message || 'Registration failed');
   return data;
 };

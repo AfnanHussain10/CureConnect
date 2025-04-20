@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, Calendar, Upload } from 'lucide-react';
+import { registerUser } from '../services/api';
 
 function PatientSignup() {
   const [formData, setFormData] = useState({
@@ -13,7 +13,8 @@ function PatientSignup() {
     gender: '',
     phoneNumber: '',
     address: '',
-    profileImage: null,
+    profileImage: null, // Stores the File object temporarily
+    profileImageBase64: '', // Stores the Base64 string
     medicalHistory: ''
   });
   
@@ -28,10 +29,30 @@ function PatientSignup() {
   
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setFormData({
-        ...formData,
-        profileImage: e.target.files[0]
-      });
+      const file = e.target.files[0];
+      if (!file.type.match(/image\/(jpeg|png)/)) {
+        setErrors({ profileImage: 'Only JPEG and PNG images are allowed' });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors({ profileImage: 'Image size must be less than 5MB' });
+        return;
+      }
+
+      // Convert image to Base64
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData({ 
+          ...formData, 
+          profileImage: file, // Keep File for preview
+          profileImageBase64: reader.result // Base64 string
+        });
+        setErrors({ ...errors, profileImage: null });
+      };
+      reader.onerror = () => {
+        setErrors({ profileImage: 'Failed to read image file' });
+      };
+      reader.readAsDataURL(file);
     }
   };
   
@@ -57,13 +78,23 @@ function PatientSignup() {
     const newErrors = {};
     
     if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
+    else {
+      const dob = new Date(formData.dateOfBirth);
+      const today = new Date();
+      if (dob > today) newErrors.dateOfBirth = 'Date of birth cannot be in the future';
+    }
     if (!formData.gender) newErrors.gender = 'Gender is required';
+    if (!formData.phoneNumber) newErrors.phoneNumber = 'Phone number is required';
+    else if (!/^\d{11}$/.test(formData.phoneNumber.replace(/\D/g, ''))) newErrors.phoneNumber = 'Phone number must be 11 digits';
+    
+    if (!formData.address) newErrors.address = 'Address is required';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
   
-  const nextStep = () => {
+  const nextStep = (e) => {
+    e.preventDefault(); // Prevent form submission during navigation
     if (step === 1) {
       if (validateStep1()) setStep(2);
     } else if (step === 2) {
@@ -71,18 +102,48 @@ function PatientSignup() {
     }
   };
   
-  const prevStep = () => {
+  const prevStep = (e) => {
+    e.preventDefault(); // Prevent form submission
     setStep(step - 1);
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // In a real app, you would send this data to your backend
-    console.log('Form data submitted:', formData);
+    // Only proceed with submission if on Step 3
+    if (step !== 3) return;
     
-    // Mock successful registration
-    navigate('/login', { state: { message: 'Registration successful! Please login with your credentials.', userType: 'patient' } });
+    if (!validateStep1() || !validateStep2()) {
+      setStep(1);
+      return;
+    }
+    
+    // Prepare JSON payload
+    const userData = {
+      name: formData.fullName,
+      email: formData.email,
+      password: formData.password,
+      dateOfBirth: formData.dateOfBirth,
+      gender: formData.gender,
+      phoneNumber: formData.phoneNumber,
+      address: formData.address,
+      medicalHistory: formData.medicalHistory || '',
+      profileImage: formData.profileImageBase64 || '' // Base64 string or empty
+    };
+    
+    try {
+      const response = await registerUser(userData, 'patient');
+      console.log('Registration successful:', response);
+      navigate('/login', { 
+        state: { 
+          message: 'Registration successful! Please login with your credentials.', 
+          userType: 'patient' 
+        } 
+      });
+    } catch (error) {
+      console.error('Registration failed:', error.message);
+      setErrors({ submit: error.message });
+    }
   };
   
   return (
@@ -93,6 +154,12 @@ function PatientSignup() {
             <h2 className="text-3xl font-bold text-gray-900">Patient Registration</h2>
             <p className="mt-2 text-gray-600">Join our healthcare platform</p>
           </div>
+          
+          {errors.submit && (
+            <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-400">
+              <p className="text-sm text-red-700">{errors.submit}</p>
+            </div>
+          )}
           
           <div className="mb-8">
             <div className="flex items-center justify-between">
@@ -262,7 +329,7 @@ function PatientSignup() {
                 </div>
                 
                 <div>
-                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">Phone Number (Optional)</label>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">Phone Number</label>
                   <div className="mt-1">
                     <input
                       type="tel"
@@ -270,14 +337,15 @@ function PatientSignup() {
                       name="phoneNumber"
                       value={formData.phoneNumber}
                       onChange={handleChange}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className={`block w-full px-3 py-2 border ${errors.phoneNumber ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
                       placeholder="(123) 456-7890"
                     />
                   </div>
+                  {errors.phoneNumber && <p className="mt-2 text-sm text-red-600">{errors.phoneNumber}</p>}
                 </div>
                 
                 <div>
-                  <label htmlFor="address" className="block text-sm font-medium text-gray-700">Address (Optional)</label>
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700">Address</label>
                   <div className="mt-1">
                     <input
                       type="text"
@@ -285,14 +353,15 @@ function PatientSignup() {
                       name="address"
                       value={formData.address}
                       onChange={handleChange}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      className={`block w-full px-3 py-2 border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
                       placeholder="123 Main St, City, State, ZIP"
                     />
                   </div>
+                  {errors.address && <p className="mt-2 text-sm text-red-600">{errors.address}</p>}
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Profile Picture (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-700">Profile Picture</label>
                   <div className="mt-1 flex items-center">
                     <span className="inline-block h-12 w-12 rounded-full overflow-hidden bg-gray-100">
                       {formData.profileImage ? (
@@ -320,6 +389,7 @@ function PatientSignup() {
                       onChange={handleImageChange}
                     />
                   </div>
+                  {errors.profileImage && <p className="mt-2 text-sm text-red-600">{errors.profileImage}</p>}
                 </div>
                 
                 <div>
@@ -355,8 +425,8 @@ function PatientSignup() {
                     
                     <div>
                       <h4 className="text-sm font-medium text-gray-500">Contact Information</h4>
-                      <p className="mt-1"><span className="font-medium">Phone:</span> {formData.phoneNumber || 'Not provided'}</p>
-                      <p><span className="font-medium">Address:</span> {formData.address || 'Not provided'}</p>
+                      <p className="mt-1"><span className="font-medium">Phone:</span> {formData.phoneNumber}</p>
+                      <p><span className="font-medium">Address:</span> {formData.address}</p>
                     </div>
                   </div>
                   
@@ -364,6 +434,17 @@ function PatientSignup() {
                     <div className="mt-4">
                       <h4 className="text-sm font-medium text-gray-500">Medical History</h4>
                       <p className="mt-1 text-sm text-gray-600">{formData.medicalHistory}</p>
+                    </div>
+                  )}
+                  
+                  {formData.profileImage && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-500">Profile Picture</h4>
+                      <img
+                        src={URL.createObjectURL(formData.profileImage)}
+                        alt="Profile preview"
+                        className="mt-1 h-20 w-20 rounded-full object-cover"
+                      />
                     </div>
                   )}
                 </div>
