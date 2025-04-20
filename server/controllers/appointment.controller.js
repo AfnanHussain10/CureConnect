@@ -231,6 +231,31 @@ export const deleteAppointment = async (req, res) => {
     });
   }
 };
+
+export const completeAppointment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    if (appointment.status === 'completed') {
+      return res.status(400).json({ message: 'Appointment is already completed' });
+    }
+
+    if (req.user.role === 'doctor' && appointment.doctorId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to complete this appointment' });
+    }
+
+    appointment.status = 'completed';
+    await appointment.save();
+
+    res.status(200).json({ message: 'Appointment completed successfully', appointment });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 import Appointment from '../models/Appointment.model.js';
 import Doctor from '../models/Doctor.model.js';
 

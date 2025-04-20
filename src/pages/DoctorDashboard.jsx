@@ -1,35 +1,48 @@
-
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Calendar, Clock, User, FileText, Star, Settings, LogOut, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Calendar, Clock, User, FileText, Star, LogOut, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/ui/use-toast';
 
 function DoctorDashboard() {
   const { user, logout, getUserAppointments, updateAppointmentStatus, completeAppointment } = useAuth();
   const [activeTab, setActiveTab] = useState('upcoming');
-  
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setLoading(false);
+  }, [user, navigate]);
+
   const appointments = getUserAppointments();
   
   // Filter appointments based on active tab
   const filteredAppointments = appointments.filter(app => {
     if (activeTab === 'upcoming') {
-      return !app.completed && app.status !== 'cancelled';
+      return app.status !== 'completed' && app.status !== 'cancelled';
     } else if (activeTab === 'completed') {
-      return app.completed;
+      return app.status === 'completed';
     } else if (activeTab === 'cancelled') {
       return app.status === 'cancelled';
     }
     return true;
   });
-  
-  const handleAppointmentAction = (appointmentId, action) => {
-    if (action === 'approve') {
-      updateAppointmentStatus(appointmentId, 'confirmed');
-    } else if (action === 'cancel') {
-      updateAppointmentStatus(appointmentId, 'cancelled');
-    } else if (action === 'complete') {
-      completeAppointment(appointmentId);
+
+  const handleAppointmentAction = async (appointmentId, action) => {
+    try {
+      if (action === 'approve') {
+        await updateAppointmentStatus(appointmentId, 'confirmed');
+      } else if (action === 'cancel') {
+        await updateAppointmentStatus(appointmentId, 'cancelled');
+      } else if (action === 'complete') {
+        await completeAppointment(appointmentId);
+      }
+    } catch (error) {
+      // Error handling is managed by useAuth
     }
   };
   
@@ -41,10 +54,20 @@ function DoctorDashboard() {
         return 'bg-yellow-100 text-yellow-800';
       case 'cancelled':
         return 'bg-red-100 text-red-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!user) {
+    return null; // Redirect handled in useEffect
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -55,10 +78,10 @@ function DoctorDashboard() {
           <div className="flex items-center space-x-4">
             <div className="text-right">
               <p className="text-sm text-gray-500">Welcome back,</p>
-              <p className="font-medium">{user?.name}</p>
+              <p className="font-medium">{user.name}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-              {user?.name.charAt(0)}
+              {user.name.charAt(0)}
             </div>
           </div>
         </div>
@@ -145,7 +168,7 @@ function DoctorDashboard() {
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {filteredAppointments.map(appointment => (
-                  <div key={appointment.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div key={appointment._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex justify-between">
                       <div>
                         <div className="flex items-center">
@@ -154,25 +177,25 @@ function DoctorDashboard() {
                         </div>
                         <div className="flex items-center mt-2">
                           <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-                          <span>{appointment.date}</span>
+                          <span>{new Date(appointment.date).toLocaleDateString()}</span>
                           <Clock className="h-5 w-5 text-gray-400 ml-4 mr-2" />
                           <span>{appointment.time}</span>
                         </div>
                         <p className="mt-2 text-gray-600">
-                          <span className="font-medium">Symptoms:</span> {appointment.symptoms}
+                          <span className="font-medium">Symptoms:</span> {appointment.symptoms || 'None'}
                         </p>
                       </div>
                       
                       <div className="text-right">
                         <span className={`inline-block px-2 py-1 rounded-full text-xs ${getStatusClass(appointment.status)}`}>
-                          {appointment.status}
+                          {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                         </span>
                         
-                        {!appointment.completed && appointment.status !== 'cancelled' && (
+                        {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
                           <div className="mt-4 space-x-2">
                             {appointment.status === 'pending' && (
                               <button 
-                                onClick={() => handleAppointmentAction(appointment.id, 'approve')}
+                                onClick={() => handleAppointmentAction(appointment._id, 'approve')}
                                 className="px-3 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200"
                               >
                                 Approve
@@ -180,14 +203,15 @@ function DoctorDashboard() {
                             )}
                             
                             <button 
-                              onClick={() => handleAppointmentAction(appointment.id, 'complete')}
+                              onClick={() => handleAppointmentAction(appointment._id, 'complete')}
                               className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200"
+                              disabled={appointment.status !== 'confirmed'}
                             >
                               Complete
                             </button>
                             
                             <button 
-                              onClick={() => handleAppointmentAction(appointment.id, 'cancel')}
+                              onClick={() => handleAppointmentAction(appointment._id, 'cancel')}
                               className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-sm hover:bg-red-200"
                             >
                               Cancel

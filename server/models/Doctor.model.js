@@ -45,6 +45,11 @@ const DoctorSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  status: {
+    type: String,
+    enum: ['pending', 'active', 'rejected', 'suspended'],
+    default: 'pending'
+  },
   reviews: [{
     patientId: {
       type: mongoose.Schema.Types.ObjectId,

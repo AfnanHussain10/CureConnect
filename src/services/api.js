@@ -68,8 +68,11 @@ export const getAppointments = async (token, userId, role) => {
   });
   
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Failed to fetch appointments');
-  return data;
+  if (!response.ok) {
+    console.error('Failed to fetch appointments:', data.message);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
 };
 
 export const createAppointment = async (appointmentData, token) => {
@@ -99,6 +102,20 @@ export const updateAppointmentStatus = async (appointmentId, status, token) => {
   
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'Failed to update appointment');
+  return data;
+};
+
+export const completeAppointment = async (appointmentId, token) => {
+  const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/complete`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to complete appointment');
   return data;
 };
 
@@ -241,5 +258,20 @@ export const updatePatientProfile = async (id, profileData, token) => {
   
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'Failed to update patient profile');
+  return data;
+};
+
+export const updateDoctorStatus = async (doctorId, status, token) => {
+  const response = await fetch(`${API_BASE_URL}/doctors/${doctorId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ status })
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to update doctor status');
   return data;
 };

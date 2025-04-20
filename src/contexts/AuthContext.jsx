@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '../components/ui/use-toast';
@@ -53,10 +52,16 @@ export const AuthProvider = ({ children }) => {
     const loadAppointments = async () => {
       if (user && token) {
         try {
-          const appointmentsData = await api.getAppointments(token, user.id, user.role);
-          setAppointments(appointmentsData);
+          const appointmentsData = await api.getAppointments(token, user._id, user.role);
+          setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
         } catch (error) {
           console.error('Failed to load appointments:', error);
+          setAppointments([]);
+          toast({
+            title: "Error",
+            description: "Failed to load appointments",
+            variant: "destructive",
+          });
         }
       }
     };
@@ -106,6 +111,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    setAppointments([]);
     localStorage.removeItem('token');
     navigate('/');
     toast({
@@ -201,10 +207,10 @@ export const AuthProvider = ({ children }) => {
   // Function to mark appointment as completed
   const completeAppointment = async (appointmentId) => {
     try {
-      const updatedAppointment = await api.updateAppointmentStatus(appointmentId, 'completed', token);
+      const updatedAppointment = await api.completeAppointment(appointmentId, token);
       setAppointments(prev => 
         prev.map(app => 
-          app._id === appointmentId ? { ...updatedAppointment, completed: true } : app
+          app._id === appointmentId ? updatedAppointment : app
         )
       );
       
@@ -225,13 +231,13 @@ export const AuthProvider = ({ children }) => {
   
   // Get user's appointments (for doctors or patients)
   const getUserAppointments = () => {
-    if (!user) return [];
+    if (!user || !Array.isArray(appointments)) return [];
     
     return appointments.filter(app => {
       if (user.role === 'doctor') {
-        return app.doctorId === user._id || app.doctorId === user.id;
+        return app.doctorId === user._id;
       } else if (user.role === 'patient') {
-        return app.patientId === user._id || app.patientId === user.id;
+        return app.patientId === user._id;
       } else if (user.role === 'admin') {
         return true; // Admins can see all appointments
       }

@@ -4,6 +4,7 @@ import {
   getAppointmentById,
   createAppointment,
   updateAppointment,
+  completeAppointment,
   deleteAppointment
 } from '../controllers/appointment.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
@@ -16,8 +17,10 @@ router.route('/')
 
 router.route('/:id')
   .get(protect, getAppointmentById)
-  .put(protect, authorize('patient', 'doctor', 'admin'), updateAppointment) // Allow doctors/admins to update status, patients to reschedule
-  .delete(protect, authorize('patient', 'admin'), deleteAppointment); // Allow patients/admins to cancel
+  .put(protect, authorize('patient', 'doctor', 'admin'), updateAppointment)
+  .delete(protect, authorize('patient', 'admin'), deleteAppointment);
 
-// Define appointment scheduling and management routes here
+router.route('/:id/complete')
+  .patch(protect, authorize('doctor'), completeAppointment);
+
 export default router;

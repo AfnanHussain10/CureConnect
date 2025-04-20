@@ -146,3 +146,27 @@ export const searchDoctors = async (req, res) => {
     });
   }
 };
+
+// Update doctor status
+export const updateDoctorStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['pending', 'active', 'rejected', 'suspended'];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    const doctor = await Doctor.findById(req.params.id);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    doctor.status = status;
+    await doctor.save();
+
+    res.status(200).json({ message: 'Doctor status updated successfully', doctor });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

@@ -460,7 +460,7 @@ function PatientDashboard() {
 
                   <div className="mt-6 text-center">
                     <Link
-                      to="/find-doctor"
+                      to="/doctor-list"
                       className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
                     >
                       Book a New Appointment
@@ -475,111 +475,52 @@ function PatientDashboard() {
                   <div className="border-b border-gray-200 mb-6">
                     <h2 className="text-xl font-semibold text-gray-800 pb-4">Find a Doctor</h2>
                   </div>
-
+                  
                   <div className="mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          placeholder="Search by name or specialization"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div className="w-full md:w-48">
-                        <select className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
-                          <option value="">All Specializations</option>
-                          <option value="cardiology">Cardiology</option>
-                          <option value="dermatology">Dermatology</option>
-                          <option value="neurology">Neurology</option>
-                          <option value="pediatrics">Pediatrics</option>
-                          <option value="orthopedics">Orthopedics</option>
-                        </select>
-                      </div>
-                      <div className="w-full md:w-48">
-                        <select className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
-                          <option value="">All Locations</option>
-                          <option value="new-york">New York</option>
-                          <option value="los-angeles">Los Angeles</option>
-                          <option value="chicago">Chicago</option>
-                          <option value="houston">Houston</option>
-                          <option value="miami">Miami</option>
-                        </select>
-                      </div>
-                      <button className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-                        Search
-                      </button>
-                    </div>
+                    <p className="text-gray-600 mb-4">
+                      Find the right healthcare professional for your needs. Browse our list of qualified doctors and book an appointment.
+                    </p>
+                    
+                    <Link
+                      to="/doctor-list"
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                      View All Doctors
+                    </Link>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Sample Doctor Cards - in a real app, these would be populated from search results */}
-                    <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                      <div className="flex items-start">
-                        <img
-                          className="h-16 w-16 rounded-full mr-4"
-                          src="https://randomuser.me/api/portraits/women/45.jpg"
-                          alt="Dr. Sarah Johnson"
-                        />
-                        <div className="flex-1">
-                          <h3 className="text-lg font-medium">Dr. Sarah Johnson</h3>
-                          <p className="text-sm text-gray-600">Cardiologist</p>
-                          <div className="flex items-center mt-1">
-                            <div className="flex text-yellow-400">
-                              {[...Array(5)].map((_, i) => (
-                                <Star key={i} className="h-4 w-4" fill={i < 4 ? 'currentColor' : 'none'} />
-                              ))}
+                  
+                  {/* Recently Viewed Doctors - This would be dynamic in a real app */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-700 mb-4">Recently Viewed Doctors</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {doctors && doctors.slice(0, 4).map((doctor) => (
+                        <div key={doctor._id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 mr-4">
+                              <div className="w-16 h-16 rounded-full overflow-hidden bg-blue-100 flex items-center justify-center">
+                                {doctor.image ? (
+                                  <img src={doctor.image} alt={doctor.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-xl font-bold text-blue-600">{doctor.name?.charAt(0)}</span>
+                                )}
+                              </div>
                             </div>
-                            <span className="text-xs text-gray-600 ml-1">(128 reviews)</span>
-                          </div>
-                          <p className="text-xs text-gray-600 mt-1">New York, NY • Available Today</p>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <Link
-                          to="/doctor/1"
-                          className="text-blue-600 text-sm font-medium hover:text-blue-800"
-                        >
-                          View Profile & Book
-                        </Link>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                      <div className="flex items-start">
-                        <img
-                          className="h-16 w-16 rounded-full mr-4"
-                          src="https://randomuser.me/api/portraits/men/32.jpg"
-                          alt="Dr. Michael Chen"
-                        />
-                        <div className="flex-1">
-                          <h3 className="text-lg font-medium">Dr. Michael Chen</h3>
-                          <p className="text-sm text-gray-600">Dermatologist</p>
-                          <div className="flex items-center mt-1">
-                            <div className="flex text-yellow-400">
-                              {[...Array(5)].map((_, i) => (
-                                <Star key={i} className="h-4 w-4" fill={i < 5 ? 'currentColor' : 'none'} />
-                              ))}
+                            <div>
+                              <h4 className="text-md font-semibold">{doctor.name}</h4>
+                              <p className="text-sm text-gray-600">{doctor.specialization}</p>
+                              <div className="mt-2">
+                                <Link
+                                  to={`/appointment-booking/${doctor._id}`}
+                                  className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100"
+                                >
+                                  Book Appointment
+                                </Link>
+                              </div>
                             </div>
-                            <span className="text-xs text-gray-600 ml-1">(93 reviews)</span>
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">Los Angeles, CA • Next Available: Tomorrow</p>
                         </div>
-                      </div>
-                      <div className="mt-4">
-                        <Link
-                          to="/doctor/2"
-                          className="text-blue-600 text-sm font-medium hover:text-blue-800"
-                        >
-                          View Profile & Book
-                        </Link>
-                      </div>
+                      ))}
                     </div>
-                  </div>
-
-                  <div className="mt-4 text-center">
-                    <button className="text-blue-600 text-sm font-medium hover:text-blue-800">
-                      View More Doctors
-                    </button>
                   </div>
                 </div>
               )}

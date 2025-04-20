@@ -12,7 +12,7 @@ import patientRoutes from './routes/patient.routes.js';
 import appointmentRoutes from './routes/appointment.routes.js';
 import prescriptionRoutes from './routes/prescription.routes.js';
 import reportRoutes from './routes/report.routes.js';
-
+import reviewRoutes from './routes/review.routes.js'
 // Load environment variables
 dotenv.config();
 
@@ -42,7 +42,7 @@ app.use('/api/patients', patientRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/reports', reportRoutes);
-
+app.use('/api/reviews', reviewRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
