@@ -1,6 +1,6 @@
 import express from 'express';
 import {
-  getAllUsers,
+  getUsers,
   getUserById,
   updateUser,
   deleteUser
@@ -11,7 +11,7 @@ const router = express.Router();
 
 // User management routes (primarily for admins)
 router.route('/')
-  .get(protect, authorize('admin'), getAllUsers); // Only admins can get all users
+  .get(protect, authorize('admin'), getUsers); // Only admins can get all users
 
 router.route('/:id')
   .get(protect, authorize('admin'), getUserById) // Only admins can get any user by ID

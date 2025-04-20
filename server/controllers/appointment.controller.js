@@ -1,5 +1,4 @@
-import Appointment from '../models/Appointment.model.js';
-import Doctor from '../models/Doctor.model.js';
+//import Doctor from '../models/Doctor.model.js';
 import sendEmail from '../utils/sendEmail.js';
 
 // Get appointments based on user role
