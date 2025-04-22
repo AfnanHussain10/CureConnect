@@ -22,6 +22,20 @@ export const AuthProvider = ({ children }) => {
         if (token) {
           const { user: currentUser } = await api.getCurrentUser(token);
           setUser(currentUser);
+          // Redirect based on user type on initial load
+          switch(currentUser.role) {
+            case 'patient':
+              navigate('/patient-dashboard');
+              break;
+            case 'doctor':
+              navigate('/doctor-dashboard');
+              break;
+            case 'admin':
+              navigate('/admin-dashboard');
+              break;
+            default:
+              navigate('/');
+          }
         }
       } catch (error) {
         console.error('Failed to load user:', error);
@@ -143,7 +157,10 @@ export const AuthProvider = ({ children }) => {
 
   const createAppointment = async (appointmentData) => {
     try {
-      const newAppointment = await api.createAppointment(appointmentData, token);
+      const response = await api.createAppointment(appointmentData, token);
+      console.log('Appointment payload:', appointmentData);
+      console.log('Create appointment response:', response);
+      const newAppointment = response.data; // Handle nested data
       setAppointments(prev => [...prev, newAppointment]);
       toast({
         title: "Appointment Created",
@@ -151,9 +168,10 @@ export const AuthProvider = ({ children }) => {
       });
       return true;
     } catch (error) {
+      console.error('Create appointment error:', error);
       toast({
         title: "Booking Failed",
-        description: error.message,
+        description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       return false;
@@ -207,42 +225,53 @@ export const AuthProvider = ({ children }) => {
   // Function to mark appointment as completed
   const completeAppointment = async (appointmentId) => {
     try {
+      // Check if doctor is suspended
+      if (user.role === 'doctor' && user.status === 'suspended') {
+        toast({
+          title: "Action Denied",
+          description: "Your account is suspended. You cannot perform this action.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      
       const updatedAppointment = await api.completeAppointment(appointmentId, token);
-      setAppointments(prev => 
-        prev.map(app => 
-          app._id === appointmentId ? updatedAppointment : app
-        )
-      );
+      
+      setAppointments(prev => prev.map(app => 
+        app._id === appointmentId ? updatedAppointment : app
+      ));
       
       toast({
         title: "Appointment Completed",
         description: "The appointment has been marked as completed",
       });
+      
       return true;
     } catch (error) {
       toast({
-        title: "Update Failed",
-        description: error.message,
+        title: "Action Failed",
+        description: error.message || "Failed to complete the appointment",
         variant: "destructive",
       });
       return false;
     }
   };
   
-  // Get user's appointments (for doctors or patients)
-  const getUserAppointments = () => {
-    if (!user || !Array.isArray(appointments)) return [];
+  const getUserAppointments = async () => {
+    if (!user || !token) return [];
     
-    return appointments.filter(app => {
-      if (user.role === 'doctor') {
-        return app.doctorId === user._id;
-      } else if (user.role === 'patient') {
-        return app.patientId === user._id;
-      } else if (user.role === 'admin') {
-        return true; // Admins can see all appointments
-      }
-      return false;
-    });
+    try {
+      const appointmentsData = await api.getAppointments(token);
+      return Array.isArray(appointmentsData) ? appointmentsData : [];
+    } catch (error) {
+      console.error('Failed to fetch appointments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load appointments",
+        variant: "destructive",
+      });
+      return [];
+    }
   };
 
   // Update user profile

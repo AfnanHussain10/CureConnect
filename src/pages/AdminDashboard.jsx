@@ -34,7 +34,7 @@ function AdminDashboard() {
         const patients = await api.getAllPatients(token);
         setRecentPatients(patients.slice(-3).reverse());
         setStats(prev => ({ ...prev, totalPatients: patients.length }));
-        const appointments = await api.getAppointments(token, '', 'admin');
+        const appointments = await api.getAppointments(token);
         setRecentAppointments(appointments.slice(-3).reverse());
         setStats(prev => ({ ...prev, totalAppointments: appointments.length }));
         const reviews = await api.getReviews(token);

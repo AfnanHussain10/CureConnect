@@ -1,11 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, Star, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import * as api from '../services/api';
+import { toast } from '../components/ui/use-toast';
 
 function DoctorList() {
-  const { doctors } = useAuth();
+  const { user } = useAuth();
+  const [doctors, setDoctors] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     specialization: '',
@@ -13,6 +17,27 @@ function DoctorList() {
     availability: false,
     minRating: 0
   });
+
+  // Fetch doctors on component mount
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const data = await api.getAllDoctors();
+        setDoctors(data);
+      } catch (error) {
+        console.error('Failed to fetch doctors:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load doctors",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
   
   // Get unique specializations and locations for filter options
   const specializations = [...new Set(doctors.map(doctor => doctor.specialization))].filter(Boolean);
@@ -34,7 +59,7 @@ function DoctorList() {
       doctor.location === filters.location;
     
     // Filter by availability
-    const matchesAvailability = !filters.availability || doctor.available;
+    const matchesAvailability = !filters.availability || doctor.isAvailable;
     
     // Filter by rating
     const matchesRating = (doctor.rating || 0) >= filters.minRating;
@@ -49,6 +74,17 @@ function DoctorList() {
       [name]: type === 'checkbox' ? checked : value
     });
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading doctors...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -169,7 +205,7 @@ function DoctorList() {
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {filteredDoctors.map(doctor => (
-                  <div key={doctor.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                  <div key={doctor._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
                     <div className="p-4 md:p-6 flex flex-col md:flex-row">
                       <div className="md:w-1/4 mb-4 md:mb-0">
                         <div className="relative mx-auto md:mx-0 w-24 h-24 md:w-32 md:h-32 bg-gray-200 rounded-full overflow-hidden">
@@ -184,7 +220,7 @@ function DoctorList() {
                               <span className="text-2xl font-bold">{doctor.name.charAt(0)}</span>
                             </div>
                           )}
-                          {doctor.available && (
+                          {doctor.isAvailable && (
                             <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
                           )}
                         </div>
@@ -218,7 +254,7 @@ function DoctorList() {
                               {doctor.location}
                             </span>
                           )}
-                          {doctor.available && (
+                          {doctor.isAvailable && (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               <Clock className="h-3 w-3 mr-1" />
                               Available
@@ -237,17 +273,26 @@ function DoctorList() {
                         
                         <div className="flex flex-col sm:flex-row gap-2">
                           <Link 
-                            to={`/doctor/${doctor.id}`}
+                            to={`/doctor/${doctor._id}`}
                             className="text-center px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50"
                           >
                             View Profile
                           </Link>
-                          <Link 
-                            to={`/book-appointment/${doctor.id}`}
-                            className="text-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                          >
-                            Book Appointment
-                          </Link>
+                          {user?.role === 'patient' ? (
+                            <Link 
+                              to={`/book-appointment/${doctor._id}`}
+                              className="text-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                            >
+                              Book Appointment
+                            </Link>
+                          ) : (
+                            <Link 
+                              to="/login"
+                              className="text-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                            >
+                              Login to Book
+                            </Link>
+                          )}
                         </div>
                       </div>
                     </div>

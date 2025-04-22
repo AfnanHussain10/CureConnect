@@ -4,8 +4,11 @@ import {
   getAppointmentById,
   createAppointment,
   updateAppointment,
+  updateStatus,
+  editAppointmentDetails,
   completeAppointment,
-  deleteAppointment
+  deleteAppointment,
+  submitFeedback
 } from '../controllers/appointment.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
 
@@ -18,9 +21,18 @@ router.route('/')
 router.route('/:id')
   .get(protect, getAppointmentById)
   .put(protect, authorize('patient', 'doctor', 'admin'), updateAppointment)
-  .delete(protect, authorize('patient', 'admin'), deleteAppointment);
+  .delete(protect, authorize('patient', 'doctor', 'admin'), deleteAppointment);
+
+router.route('/:id/status')
+  .put(protect, authorize('doctor', 'admin'), updateStatus);
+
+router.route('/:id/details')
+  .put(protect, authorize('patient', 'doctor', 'admin'), editAppointmentDetails);
 
 router.route('/:id/complete')
-  .patch(protect, authorize('doctor'), completeAppointment);
+  .put(protect, authorize('doctor'), completeAppointment);
+
+router.route('/:id/feedback')
+  .post(protect, authorize('patient'), submitFeedback);
 
 export default router;

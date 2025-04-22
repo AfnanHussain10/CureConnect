@@ -64,8 +64,12 @@ export const getAppointmentById = async (req, res) => {
 // Create new appointment
 export const createAppointment = async (req, res) => {
   try {
-    const { doctorId, date, time, symptoms } = req.body;
-    const patientId = req.user.id;
+    const { date, doctorId, doctorName, notes, patientId: clientPatientId, patientName: clientPatientName, symptoms, time } = req.body;
+    // Use patientId from request body if provided (from frontend) or fall back to req.user.id
+    const patientId = clientPatientId || req.user.id;
+    const patientName = clientPatientName || req.user.name;
+
+    console.log('Create appointment request:', { date, doctorId, doctorName, notes, patientId, patientName, symptoms, time });
 
     // Check if doctor exists and is available
     const doctor = await Doctor.findById(doctorId);
@@ -75,11 +79,19 @@ export const createAppointment = async (req, res) => {
         message: 'Doctor not found'
       });
     }
+    
+    // Check if doctor is suspended
+    if (doctor.status === 'suspended') {
+      return res.status(400).json({
+        success: false,
+        message: 'This doctor is currently unavailable for appointments'
+      });
+    }
 
     // Check if time slot is available
     const existingAppointment = await Appointment.findOne({
       doctorId,
-      date,
+      date: new Date(date), // Ensure date is parsed
       time,
       status: { $ne: 'cancelled' }
     });
@@ -91,33 +103,50 @@ export const createAppointment = async (req, res) => {
       });
     }
 
+    // Parse date to ensure it's a valid Date object
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format'
+      });
+    }
+
     // Create appointment
     const appointment = await Appointment.create({
       doctorId,
       patientId,
-      doctorName: doctor.name,
-      patientName: req.user.name,
-      date,
+      doctorName,
+      patientName,
+      date: parsedDate,
       time,
-      symptoms
+      symptoms: symptoms || '',
+      notes: notes || '',
+      status: 'pending'
     });
 
     // Send confirmation email
-    const message = `Your appointment has been scheduled with Dr. ${doctor.name} on ${date} at ${time}. Please arrive 10 minutes before your scheduled time.`;
-    await sendEmail({
-      email: req.user.email,
-      subject: 'Appointment Confirmation',
-      message
-    });
+    const emailMessage = `Your appointment has been scheduled with Dr. ${doctorName} on ${parsedDate.toLocaleDateString()} at ${time}. Please arrive 10 minutes before your scheduled time.`;
+    try {
+      await sendEmail({
+        email: req.user.email,
+        subject: 'Appointment Confirmation',
+        message: emailMessage
+      });
+    } catch (emailError) {
+      console.error('Failed to send confirmation email:', emailError);
+      // Continue despite email failure
+    }
 
     res.status(201).json({
       success: true,
       data: appointment
     });
   } catch (error) {
+    console.error('Error creating appointment:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Internal server error'
     });
   }
 };
@@ -141,13 +170,62 @@ export const updateAppointment = async (req, res) => {
         message: 'Not authorized to update this appointment'
       });
     }
+    if (req.user.status === 'suspended') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is suspended and cannot update appointments'
+      });
+    }
 
-    // If rescheduling, check new time slot availability
-    if (req.body.date && req.body.time) {
+    // If rescheduling, check new time slot and doctor availability
+    if (req.body.date || req.body.time) {
+      const doctor = await Doctor.findById(appointment.doctorId);
+      if (!doctor) {
+        return res.status(404).json({
+          success: false,
+          message: 'Doctor not found'
+        });
+      }
+
+      // Check if doctor is suspended
+      if (doctor.status === 'suspended') {
+        return res.status(400).json({
+          success: false,
+          message: 'This doctor is currently unavailable for appointments'
+        });
+      }
+
+      // Check if doctor is available on the requested day
+      const newDate = req.body.date ? new Date(req.body.date) : appointment.date;
+      if (isNaN(newDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid date format'
+        });
+      }
+
+      const dayOfWeek = newDate.toLocaleString('en-US', { weekday: 'long' });
+      if (!doctor.availableDays.includes(dayOfWeek)) {
+        return res.status(400).json({
+          success: false,
+          message: `Doctor is not available on ${dayOfWeek}`
+        });
+      }
+
+      // Check if the requested time slot is available
+      const newTime = req.body.time || appointment.time;
+      if (!doctor.availableTimeSlots.includes(newTime)) {
+        return res.status(400).json({
+          success: false,
+          message: `Doctor is not available at ${newTime}`
+        });
+      }
+
+      // Check if the time slot is already booked
       const existingAppointment = await Appointment.findOne({
         doctorId: appointment.doctorId,
-        date: req.body.date,
-        time: req.body.time,
+        date: newDate,
+        time: newTime,
         status: { $ne: 'cancelled' },
         _id: { $ne: req.params.id }
       });
@@ -160,6 +238,7 @@ export const updateAppointment = async (req, res) => {
       }
     }
 
+    // Update the appointment
     appointment = await Appointment.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -168,12 +247,22 @@ export const updateAppointment = async (req, res) => {
 
     // Send email notification for rescheduling
     if (req.body.date || req.body.time) {
-      const message = `Your appointment has been rescheduled to ${appointment.date} at ${appointment.time}.`;
-      await sendEmail({
-        email: req.user.email,
-        subject: 'Appointment Rescheduled',
-        message
-      });
+      if (!req.user.email) {
+        console.error('No email found for user:', req.user);
+      } else {
+        const message = `Your appointment has been rescheduled to ${appointment.date.toLocaleDateString()} at ${appointment.time}.`;
+        console.log('Attempting to send email to:', req.user.email);
+        try {
+          await sendEmail({
+            email: req.user.email,
+            subject: 'Appointment Rescheduled',
+            message
+          });
+          console.log('Email sent successfully to:', req.user.email);
+        } catch (emailError) {
+          console.error('Failed to send rescheduling email:', emailError);
+        }
+      }
     }
 
     res.status(200).json({
@@ -181,9 +270,10 @@ export const updateAppointment = async (req, res) => {
       data: appointment
     });
   } catch (error) {
+    console.error('Error updating appointment:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Internal server error'
     });
   }
 };
@@ -228,6 +318,132 @@ export const deleteAppointment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+};
+
+// Update appointment status only
+export const updateStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    // Validate status
+    if (!['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status value'
+      });
+    }
+    
+    const appointment = await Appointment.findById(req.params.id);
+    
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+    
+    // Check permission based on role and status change
+    if (req.user.role === 'patient' && appointment.patientId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this appointment'
+      });
+    }
+    
+    // Only doctors can confirm or complete appointments
+    if ((status === 'confirmed' || status === 'completed') && 
+        req.user.role !== 'doctor' && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only doctors can confirm or complete appointments'
+      });
+    }
+    
+    // Update the status
+    appointment.status = status;
+    await appointment.save();
+    
+    // Send email notification for status change
+    let emailSubject = 'Appointment Status Updated';
+    let emailMessage = `Your appointment status has been updated to ${status}.`;
+    
+    if (status === 'confirmed') {
+      emailSubject = 'Appointment Confirmed';
+      emailMessage = `Your appointment has been confirmed for ${appointment.date} at ${appointment.time}.`;
+    } else if (status === 'cancelled') {
+      emailSubject = 'Appointment Cancelled';
+      emailMessage = `Your appointment scheduled for ${appointment.date} at ${appointment.time} has been cancelled.`;
+    } else if (status === 'completed') {
+      emailSubject = 'Appointment Completed';
+      emailMessage = `Your appointment has been marked as completed. Thank you for using our services.`;
+    }
+    
+    try {
+      await sendEmail({
+        email: req.user.email,
+        subject: emailSubject,
+        message: emailMessage
+      });
+    } catch (emailError) {
+      console.error('Failed to send status update email:', emailError);
+      // Continue despite email failure
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Update appointment symptoms and notes
+export const editAppointmentDetails = async (req, res) => {
+  try {
+    const { symptoms, notes } = req.body;
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    // Verify user is the patient
+    if (req.user.role === 'patient' && appointment.patientId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to edit this appointment'
+      });
+    }
+
+    // Update fields if provided
+    appointment.symptoms = symptoms !== undefined ? symptoms : appointment.symptoms;
+    appointment.notes = notes !== undefined ? notes : appointment.notes;
+
+    const updatedAppointment = await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: updatedAppointment._id,
+        symptoms: updatedAppointment.symptoms,
+        notes: updatedAppointment.notes
+      }
+    });
+  } catch (error) {
+    console.error('Error updating appointment details:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error'
     });
   }
 };

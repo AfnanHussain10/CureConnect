@@ -3,22 +3,69 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Calendar, Clock, User, FileText, Star, LogOut, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/ui/use-toast';
+import * as api from '../services/api';
 
 function DoctorDashboard() {
-  const { user, logout, getUserAppointments, updateAppointmentStatus, completeAppointment } = useAuth();
+  const { user, token, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('upcoming');
   const [loading, setLoading] = useState(true);
+  const [appointments, setAppointments] = useState([]);
+  const [actionInProgress, setActionInProgress] = useState(false);
   const navigate = useNavigate();
 
+  // Check if user is logged in and is a doctor
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
+    
+    if (user.role !== 'doctor') {
+      toast({
+        title: "Access Denied",
+        description: "You must be logged in as a doctor to access this page",
+        variant: "destructive",
+      });
+      navigate('/');
+      return;
+    }
+    
+    // Check if doctor is suspended
+    if (user.status === 'suspended') {
+      toast({
+        title: "Account Suspended",
+        description: "Your account has been suspended. Please contact administration.",
+        variant: "destructive",
+      });
+    }
+    
     setLoading(false);
   }, [user, navigate]);
 
-  const appointments = getUserAppointments();
+  // Fetch appointments from API
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      if (user && token) {
+        try {
+          setLoading(true);
+          const response = await api.getAppointments(token);
+          setAppointments(Array.isArray(response) ? response : []);
+        } catch (error) {
+          console.error('Failed to fetch appointments:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load appointments. Please try again.",
+            variant: "destructive",
+          });
+          setAppointments([]);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    fetchAppointments();
+  }, [user, token]);
   
   // Filter appointments based on active tab
   const filteredAppointments = appointments.filter(app => {
@@ -33,16 +80,72 @@ function DoctorDashboard() {
   });
 
   const handleAppointmentAction = async (appointmentId, action) => {
+    // Prevent actions if doctor is suspended
+    if (user.status === 'suspended') {
+      toast({
+        title: "Action Denied",
+        description: "Your account is suspended. You cannot perform this action.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Prevent multiple actions at once
+    if (actionInProgress) {
+      return;
+    }
+    
+    setActionInProgress(true);
+    
     try {
+      let updatedAppointment;
+      
       if (action === 'approve') {
-        await updateAppointmentStatus(appointmentId, 'confirmed');
+        updatedAppointment = await api.updateAppointmentStatus(appointmentId, 'confirmed', token);
+        toast({
+          title: "Appointment Approved",
+          description: "The appointment has been confirmed successfully.",
+        });
       } else if (action === 'cancel') {
-        await updateAppointmentStatus(appointmentId, 'cancelled');
+        updatedAppointment = await api.updateAppointmentStatus(appointmentId, 'cancelled', token);
+        toast({
+          title: "Appointment Cancelled",
+          description: "The appointment has been cancelled successfully.",
+        });
       } else if (action === 'complete') {
-        await completeAppointment(appointmentId);
+        // Use the dedicated status update endpoint instead of the complete endpoint
+        updatedAppointment = await api.updateAppointmentStatus(appointmentId, 'completed', token);
+        toast({
+          title: "Appointment Completed",
+          description: "The appointment has been marked as completed.",
+        });
+      }
+      
+      // Update the appointments list with the updated appointment
+      if (updatedAppointment) {
+        setAppointments(prev => prev.map(app => 
+          app._id === appointmentId ? updatedAppointment : app
+        ));
       }
     } catch (error) {
-      // Error handling is managed by useAuth
+      console.error(`Failed to ${action} appointment:`, error);
+      // Improved error handling for better user feedback
+      let errorMessage = `Failed to ${action} the appointment. Please try again.`;
+      
+      // Check if error is a SyntaxError (JSON parsing error)
+      if (error instanceof SyntaxError) {
+        errorMessage = "The server returned an invalid response. Please try again later or contact support.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Action Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setActionInProgress(false);
     }
   };
   

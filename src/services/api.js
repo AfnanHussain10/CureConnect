@@ -59,8 +59,8 @@ export const getDoctorById = async (id) => {
 };
 
 // Appointment API calls
-export const getAppointments = async (token, userId, role) => {
-  const response = await fetch(`${API_BASE_URL}/appointments?${role}Id=${userId}`, {
+export const getAppointments = async (token) => {
+  const response = await fetch(`${API_BASE_URL}/appointments`, {
     headers: { 
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -72,51 +72,203 @@ export const getAppointments = async (token, userId, role) => {
     console.error('Failed to fetch appointments:', data.message);
     return [];
   }
-  return Array.isArray(data) ? data : [];
+  return data.data || [];
 };
 
 export const createAppointment = async (appointmentData, token) => {
-  const response = await fetch(`${API_BASE_URL}/appointments`, {
-    method: 'POST',
-    headers: { 
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(appointmentData)
-  });
-  
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Failed to create appointment');
-  return data;
+  console.log('Sending appointment request:', { appointmentData, token });
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointments`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(appointmentData)
+    });
+
+    const data = await response.json();
+    console.log('Create appointment response:', data);
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create appointment');
+    }
+
+    return data; // Return the full response, handled in AuthContext
+  } catch (error) {
+    console.error('API create appointment error:', error);
+    throw error; // Rethrow to be caught in AuthContext
+  }
 };
 
 export const updateAppointmentStatus = async (appointmentId, status, token) => {
-  const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}`, {
-    method: 'PATCH',
-    headers: { 
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ status })
-  });
-  
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Failed to update appointment');
-  return data;
+  try {
+    console.log(`Updating appointment ${appointmentId} status to ${status}`);
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/status`, {
+      method: 'PATCH',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+    
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Handle non-JSON response
+      const text = await response.text();
+      console.log('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update appointment status');
+    return data.data; // Return the appointment data
+  } catch (error) {
+    console.error('Update appointment status error:', error);
+    throw error; // Rethrow to be handled by the calling function
+  }
 };
 
-export const completeAppointment = async (appointmentId, token) => {
-  const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/complete`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  });
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Failed to complete appointment');
-  return data;
+export const completeAppointment = async (appointmentId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/complete`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Handle non-JSON response
+      const text = await response.text();
+      console.error('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to complete appointment');
+    return data;
+  } catch (error) {
+    console.error('Complete appointment error:', error);
+    throw error; // Rethrow to be handled by the calling function
+  }
+};
+
+export const rescheduleAppointment = async (appointmentId, rescheduleData, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}`, {
+      method: 'PUT',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(rescheduleData)
+    });
+    
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Handle non-JSON response
+      const text = await response.text();
+      console.log('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to reschedule appointment');
+    return data;
+  } catch (error) {
+    console.error('Reschedule appointment error:', error);
+    throw error; // Rethrow to be handled by the calling function
+  }
+};
+
+export const editAppointmentDetails = async (appointmentId, data, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/details`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+
+    const responseData = await response.json();
+    if (!response.ok) throw new Error(responseData.message || 'Failed to edit appointment details');
+    return responseData;
+  } catch (error) {
+    console.error('Edit appointment details error:', error);
+    throw error;
+  }
+};
+
+export const cancelAppointment = async (appointmentId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to cancel appointment');
+    return data;
+  } catch (error) {
+    console.error('Cancel appointment error:', error);
+    throw error;
+  }
+};
+
+export const submitFeedback = async (appointmentId, feedbackData, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/feedback`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(feedbackData)
+    });
+
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Handle non-JSON response
+      const text = await response.text();
+      console.error('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to submit feedback');
+    return data;
+  } catch (error) {
+    console.error('Submit feedback error:', error);
+    throw error; // Rethrow to be handled by the calling function
+  }
 };
 
 // Report API calls

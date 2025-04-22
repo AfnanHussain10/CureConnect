@@ -162,11 +162,64 @@ export const updateDoctorStatus = async (req, res) => {
       return res.status(404).json({ message: 'Doctor not found' });
     }
 
+    const previousStatus = doctor.status;
     doctor.status = status;
     await doctor.save();
+
+    // If doctor is suspended, cancel all pending and confirmed appointments
+    if (status === 'suspended' && previousStatus !== 'suspended') {
+      await cancelDoctorAppointments(doctor._id, 'Doctor has been suspended');
+    }
 
     res.status(200).json({ message: 'Doctor status updated successfully', doctor });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Helper function to cancel all appointments for a doctor
+async function cancelDoctorAppointments(doctorId, reason) {
+  try {
+    // Import Appointment model and sendEmail utility
+    const Appointment = mongoose.model('Appointment');
+    
+    // Find all pending and confirmed appointments for this doctor
+    const appointments = await Appointment.find({
+      doctorId,
+      status: { $in: ['pending', 'confirmed'] }
+    }).populate('patientId', 'email name');
+    
+    // Update all appointments to cancelled
+    const updatePromises = appointments.map(async (appointment) => {
+      appointment.status = 'cancelled';
+      appointment.notes += `\n${reason}`;
+      await appointment.save();
+      
+      // Send email notification to patient
+      if (appointment.patientId && appointment.patientId.email) {
+        try {
+          const emailMessage = `Your appointment with Dr. ${appointment.doctorName} scheduled for ${appointment.date.toLocaleDateString()} at ${appointment.time} has been cancelled. Reason: ${reason}. Please contact our support team for assistance in rebooking with another doctor.`;
+          
+          await sendEmail({
+            email: appointment.patientId.email,
+            subject: 'Appointment Cancelled',
+            message: emailMessage
+          });
+        } catch (emailError) {
+          console.error('Failed to send cancellation email:', emailError);
+        }
+      }
+    });
+    
+    await Promise.all(updatePromises);
+    console.log(`Cancelled ${appointments.length} appointments for doctor ${doctorId}`);
+    return appointments.length;
+  } catch (error) {
+    console.error('Error cancelling doctor appointments:', error);
+    throw error;
+  }
+};
+
+// Import sendEmail utility at the top of the file
+import sendEmail from '../utils/sendEmail.js';
+import mongoose from 'mongoose';

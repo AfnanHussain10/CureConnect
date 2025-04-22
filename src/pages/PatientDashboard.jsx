@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
-import { Calendar, Search, FileText, User, Star, Download, Upload, Clock } from 'lucide-react';
+import { Calendar, FileText, User, Download, Upload } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/ui/use-toast';
 import * as api from '../services/api';
+import AppointmentManagement from './AppointmentManagement';
 
 function PatientDashboard() {
   const { user, token } = useAuth();
@@ -26,7 +26,6 @@ function PatientDashboard() {
         title: "Success",
         description: location.state.message,
       });
-      // Clear the message to prevent showing it again on refresh
       navigate(location.pathname, { replace: true });
     }
   }, [location]);
@@ -38,18 +37,18 @@ function PatientDashboard() {
         setLoading(true);
         try {
           // Fetch appointments
-          const appointmentsData = await api.getAppointments(token, user.id, 'patient');
+          const appointmentsResponse = await api.getAppointments(token);
+          const appointmentsData = appointmentsResponse;
           
           // Split appointments into upcoming and past
           const upcoming = [];
           const past = [];
           
           appointmentsData.forEach(appointment => {
-            // Convert appointment date to Date object for comparison
             const appointmentDate = new Date(appointment.date);
             const today = new Date();
             
-            if (appointment.completed || appointment.status === 'cancelled' || appointmentDate < today) {
+            if (appointment.status === 'completed' || appointment.status === 'cancelled' || appointmentDate < today) {
               past.push(appointment);
             } else {
               upcoming.push(appointment);
@@ -65,7 +64,6 @@ function PatientDashboard() {
             setMedicalReports(reportsData);
           } catch (error) {
             console.error('Failed to fetch reports:', error);
-            // Don't show error toast for reports as they might not be critical
           }
           
           // Fetch prescriptions
@@ -74,7 +72,6 @@ function PatientDashboard() {
             setPrescriptions(prescriptionsData);
           } catch (error) {
             console.error('Failed to fetch prescriptions:', error);
-            // Don't show error toast for prescriptions as they might not be critical
           }
           
         } catch (error) {
@@ -107,75 +104,6 @@ function PatientDashboard() {
     );
   }
 
-  const handleCancelAppointment = async (appointmentId) => {
-    try {
-      await api.updateAppointmentStatus(appointmentId, 'cancelled', token);
-      
-      // Update local state
-      setUpcomingAppointments(prev => {
-        const updated = prev.filter(app => app._id !== appointmentId);
-        return updated;
-      });
-      
-      setPastAppointments(prev => {
-        const cancelled = upcomingAppointments.find(app => app._id === appointmentId);
-        if (cancelled) {
-          cancelled.status = 'cancelled';
-          return [...prev, cancelled];
-        }
-        return prev;
-      });
-      
-      toast({
-        title: "Appointment Cancelled",
-        description: "Your appointment has been cancelled successfully.",
-      });
-    } catch (error) {
-      console.error('Failed to cancel appointment:', error);
-      toast({
-        title: "Error",
-        description: "Failed to cancel appointment. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRescheduleAppointment = (appointmentId) => {
-    // In a real app, this would navigate to a reschedule form
-    console.log(`Rescheduling appointment ${appointmentId}`);
-    navigate(`/reschedule-appointment/${appointmentId}`);
-  };
-
-  const handleSubmitReview = async (appointmentId, rating, review) => {
-    try {
-      // This would be replaced with a real API call when the review endpoint is available
-      // await api.submitReview(appointmentId, { rating, review }, token);
-      
-      // For now, just show a success message
-      toast({
-        title: "Review Submitted",
-        description: "Thank you for your feedback!",
-      });
-      
-      // Update local state to show the review was submitted
-      setPastAppointments(prev => {
-        return prev.map(app => {
-          if (app._id === appointmentId) {
-            return { ...app, hasReview: true, rating, reviewText: review };
-          }
-          return app;
-        });
-      });
-    } catch (error) {
-      console.error('Failed to submit review:', error);
-      toast({
-        title: "Error",
-        description: "Failed to submit review. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleUploadReport = async (e) => {
     e.preventDefault();
     const fileInput = e.target.querySelector('input[type="file"]');
@@ -199,10 +127,8 @@ function PatientDashboard() {
     try {
       const newReport = await api.createReport(formData, token);
       
-      // Update local state
       setMedicalReports(prev => [newReport, ...prev]);
       
-      // Reset form
       e.target.reset();
       
       toast({
@@ -219,7 +145,6 @@ function PatientDashboard() {
     }
   };
 
-  // Show loading state
   if (loading && user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -233,7 +158,6 @@ function PatientDashboard() {
   
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
@@ -253,10 +177,8 @@ function PatientDashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
           <div className="md:col-span-1">
             <nav className="bg-white shadow rounded-lg overflow-hidden">
               <div className="p-4 bg-blue-600 text-white">
@@ -271,15 +193,6 @@ function PatientDashboard() {
                 >
                   <Calendar className="mr-3 h-5 w-5" />
                   <span>Appointments</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('findDoctor')}
-                  className={`w-full flex items-center px-4 py-2 text-left rounded-md ${
-                    activeTab === 'findDoctor' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <Search className="mr-3 h-5 w-5" />
-                  <span>Find a Doctor</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('medicalRecords')}
@@ -312,152 +225,20 @@ function PatientDashboard() {
             </nav>
           </div>
 
-          {/* Main Content Area */}
           <div className="md:col-span-3">
             <div className="bg-white shadow rounded-lg p-6">
-              {/* Appointments Tab */}
               {activeTab === 'appointments' && (
                 <div>
                   <div className="border-b border-gray-200 mb-6">
                     <h2 className="text-xl font-semibold text-gray-800 pb-4">Your Appointments</h2>
                   </div>
-
-                  {/* Upcoming Appointments */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Upcoming Appointments</h3>
-                    {upcomingAppointments.length === 0 ? (
-                      <p className="text-gray-500">You have no upcoming appointments.</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {upcomingAppointments.map((appointment) => (
-                          <div key={appointment.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center">
-                                <img
-                                  src={appointment.image}
-                                  alt={appointment.doctorName}
-                                  className="h-12 w-12 rounded-full mr-4"
-                                />
-                                <div>
-                                  <h4 className="text-md font-semibold">{appointment.doctorName}</h4>
-                                  <p className="text-sm text-gray-600">{appointment.doctorSpecialization}</p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                                  appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {appointment.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="mt-4 grid grid-cols-2 gap-4">
-                              <div>
-                                <p className="text-sm text-gray-600">Date</p>
-                                <p className="text-sm font-medium">{appointment.date}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-gray-600">Time</p>
-                                <p className="text-sm font-medium">{appointment.time}</p>
-                              </div>
-                            </div>
-                            <div className="mt-4 flex justify-end space-x-2">
-                              <button
-                                onClick={() => handleRescheduleAppointment(appointment.id)}
-                                className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100"
-                              >
-                                <Clock className="h-4 w-4 mr-1" />
-                                Reschedule
-                              </button>
-                              <button
-                                onClick={() => handleCancelAppointment(appointment.id)}
-                                className="inline-flex items-center px-3 py-1 border border-red-300 text-sm font-medium rounded text-red-700 bg-red-50 hover:bg-red-100"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Past Appointments */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Past Appointments</h3>
-                    {pastAppointments.length === 0 ? (
-                      <p className="text-gray-500">You have no past appointments.</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {pastAppointments.map((appointment) => (
-                          <div key={appointment.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center">
-                                <img
-                                  src={appointment.image}
-                                  alt={appointment.doctorName}
-                                  className="h-12 w-12 rounded-full mr-4"
-                                />
-                                <div>
-                                  <h4 className="text-md font-semibold">{appointment.doctorName}</h4>
-                                  <p className="text-sm text-gray-600">{appointment.doctorSpecialization}</p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="inline-flex px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                                  {appointment.status}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="mt-4 grid grid-cols-2 gap-4">
-                              <div>
-                                <p className="text-sm text-gray-600">Date</p>
-                                <p className="text-sm font-medium">{appointment.date}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm text-gray-600">Time</p>
-                                <p className="text-sm font-medium">{appointment.time}</p>
-                              </div>
-                            </div>
-
-                            {/* Review Section */}
-                            {appointment.hasReview ? (
-                              <div className="mt-4 bg-blue-50 p-3 rounded">
-                                <p className="text-sm font-medium text-gray-700">Your Review</p>
-                                <div className="flex items-center mt-1">
-                                  {[...Array(5)].map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={`h-4 w-4 ${i < appointment.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
-                                    />
-                                  ))}
-                                </div>
-                                <p className="text-sm text-gray-600 mt-1">{appointment.reviewText}</p>
-                              </div>
-                            ) : (
-                              <div className="mt-4">
-                                <button 
-                                  className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100"
-                                  onClick={() => {
-                                    // In a real app, this would open a review form
-                                    const rating = prompt('Rate your experience from 1-5');
-                                    const review = prompt('Write your review');
-                                    if (rating && review) {
-                                      handleSubmitReview(appointment.id, parseInt(rating), review);
-                                    }
-                                  }}
-                                >
-                                  <Star className="h-4 w-4 mr-1" />
-                                  Leave a Review
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
+                  <AppointmentManagement
+                    upcomingAppointments={upcomingAppointments}
+                    pastAppointments={pastAppointments}
+                    setUpcomingAppointments={setUpcomingAppointments}
+                    setPastAppointments={setPastAppointments}
+                    token={token}
+                  />
                   <div className="mt-6 text-center">
                     <Link
                       to="/doctor-list"
@@ -469,69 +250,11 @@ function PatientDashboard() {
                 </div>
               )}
 
-              {/* Find Doctor Tab */}
-              {activeTab === 'findDoctor' && (
-                <div>
-                  <div className="border-b border-gray-200 mb-6">
-                    <h2 className="text-xl font-semibold text-gray-800 pb-4">Find a Doctor</h2>
-                  </div>
-                  
-                  <div className="mb-6">
-                    <p className="text-gray-600 mb-4">
-                      Find the right healthcare professional for your needs. Browse our list of qualified doctors and book an appointment.
-                    </p>
-                    
-                    <Link
-                      to="/doctor-list"
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                    >
-                      View All Doctors
-                    </Link>
-                  </div>
-                  
-                  {/* Recently Viewed Doctors - This would be dynamic in a real app */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-700 mb-4">Recently Viewed Doctors</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {doctors && doctors.slice(0, 4).map((doctor) => (
-                        <div key={doctor._id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 mr-4">
-                              <div className="w-16 h-16 rounded-full overflow-hidden bg-blue-100 flex items-center justify-center">
-                                {doctor.image ? (
-                                  <img src={doctor.image} alt={doctor.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-xl font-bold text-blue-600">{doctor.name?.charAt(0)}</span>
-                                )}
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="text-md font-semibold">{doctor.name}</h4>
-                              <p className="text-sm text-gray-600">{doctor.specialization}</p>
-                              <div className="mt-2">
-                                <Link
-                                  to={`/appointment-booking/${doctor._id}`}
-                                  className="inline-flex items-center px-3 py-1 border border-blue-300 text-sm font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100"
-                                >
-                                  Book Appointment
-                                </Link>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Medical Records Tab */}
               {activeTab === 'medicalRecords' && (
                 <div>
                   <div className="border-b border-gray-200 mb-6">
                     <h2 className="text-xl font-semibold text-gray-800 pb-4">Medical Records</h2>
                   </div>
-
                   <div className="mb-6">
                     <form onSubmit={handleUploadReport} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                       <h3 className="text-md font-medium mb-4">Upload New Report</h3>
@@ -568,7 +291,6 @@ function PatientDashboard() {
                       </div>
                     </form>
                   </div>
-
                   <div>
                     <h3 className="text-lg font-medium text-gray-700 mb-4">Your Medical Reports</h3>
                     {medicalReports.length === 0 ? (
@@ -628,13 +350,11 @@ function PatientDashboard() {
                 </div>
               )}
 
-              {/* Prescriptions Tab */}
               {activeTab === 'prescriptions' && (
                 <div>
                   <div className="border-b border-gray-200 mb-6">
                     <h2 className="text-xl font-semibold text-gray-800 pb-4">Prescriptions</h2>
                   </div>
-
                   {prescriptions.length === 0 ? (
                     <p className="text-gray-500">You have no prescriptions.</p>
                   ) : (
@@ -672,13 +392,11 @@ function PatientDashboard() {
                 </div>
               )}
 
-              {/* Profile Tab */}
               {activeTab === 'profile' && (
                 <div>
                   <div className="border-b border-gray-200 mb-6">
                     <h2 className="text-xl font-semibold text-gray-800 pb-4">Your Profile</h2>
                   </div>
-
                   <div className="flex flex-col md:flex-row md:items-center mb-6">
                     <div className="flex-shrink-0 mb-4 md:mb-0 md:mr-6">
                       <div className="relative">
@@ -698,7 +416,6 @@ function PatientDashboard() {
                       <p className="text-gray-600">{user.email}</p>
                     </div>
                   </div>
-
                   <form className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
@@ -734,7 +451,6 @@ function PatientDashboard() {
                         />
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                       <input 
@@ -763,7 +479,6 @@ function PatientDashboard() {
                         />
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Medical History (Optional)</label>
                       <textarea 
@@ -772,7 +487,6 @@ function PatientDashboard() {
                         className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
                       ></textarea>
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Information (Optional)</label>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -790,7 +504,6 @@ function PatientDashboard() {
                         />
                       </div>
                     </div>
-
                     <div className="flex justify-end">
                       <button
                         type="submit"

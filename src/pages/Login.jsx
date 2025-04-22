@@ -43,32 +43,6 @@ function Login() {
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center text-blue-600">Login to CureConnect</h2>
         
-        <div className="mb-4">
-          <div className="flex mb-4">
-            <button 
-              className={`flex-1 py-2 text-center ${userType === 'patient' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              onClick={() => setUserType('patient')}
-              type="button"
-            >
-              Patient
-            </button>
-            <button 
-              className={`flex-1 py-2 text-center ${userType === 'doctor' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              onClick={() => setUserType('doctor')}
-              type="button"
-            >
-              Doctor
-            </button>
-            <button 
-              className={`flex-1 py-2 text-center ${userType === 'admin' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-              onClick={() => setUserType('admin')}
-              type="button"
-            >
-              Admin
-            </button>
-          </div>
-        </div>
-        
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
