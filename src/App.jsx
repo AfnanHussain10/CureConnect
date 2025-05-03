@@ -11,12 +11,13 @@ import PatientSignup from './pages/PatientSignup.jsx';
 import DoctorSignup from './pages/DoctorSignup.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import DoctorProfile from './pages/DoctorProfile.jsx';
 import DoctorList from './pages/DoctorList.jsx';
 import AppointmentBooking from './pages/AppointmentBooking.jsx';
 import PatientProfile from './pages/PatientProfile.jsx';
 import AppointmentManagement from './pages/AppointmentManagement.jsx';
 import PrescriptionManagement from './pages/PrescriptionManagement.jsx';
+import Prescriptions from './pages/Prescriptions.jsx';
+
 import NotFound from './pages/NotFound.jsx';
 import Navbar from './components/Navbar.jsx';
 
@@ -37,7 +38,6 @@ function App() {
                 <Route path="/patient-signup" element={<PatientSignup />} />
                 <Route path="/doctor-signup" element={<DoctorSignup />} />
                 <Route path="/doctor-list" element={<DoctorList />} />
-                <Route path="/doctor/:doctorId" element={<DoctorProfile />} />
                 <Route
                   path="/patient-dashboard"
                   element={
@@ -71,14 +71,6 @@ function App() {
                   }
                 />
                 <Route
-                  path="/doctor-profile"
-                  element={
-                    <ProtectedRoute userType="doctor">
-                      <DoctorProfile />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
                   path="/book-appointment/:doctorId"
                   element={
                     <ProtectedRoute userType="patient">
@@ -96,6 +88,15 @@ function App() {
                 />
                 <Route
                   path="/prescriptions"
+                  element={
+                    <ProtectedRoute userType="patient">
+                      <Prescriptions />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/prescription-management"
                   element={
                     <ProtectedRoute>
                       <PrescriptionManagement />

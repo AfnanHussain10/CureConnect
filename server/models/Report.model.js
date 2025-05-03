@@ -6,26 +6,13 @@ const ReportSchema = new mongoose.Schema({
     ref: 'Patient',
     required: true
   },
-  doctorId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Doctor',
-    required: true
-  },
   patientName: {
     type: String,
     required: true
   },
-  doctorName: {
-    type: String,
-    required: true
-  },
-  appointmentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Appointment'
-  },
   reportType: {
     type: String,
-    enum: ['lab', 'imaging', 'pathology', 'other'],
+    enum: ['lab', 'imaging', 'pathology', 'prescription', 'vaccination', 'other'],
     required: [true, 'Please provide report type']
   },
   title: {
@@ -40,22 +27,21 @@ const ReportSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide report file']
   },
-  findings: {
+  fileType: {
     type: String,
-    default: ''
+    required: [true, 'Please provide file type']
   },
-  conclusion: {
-    type: String,
-    default: ''
+  fileSize: {
+    type: Number,
+    required: [true, 'Please provide file size']
   },
   issuedDate: {
     type: Date,
-    default: Date.now
+    required: [true, 'Please provide issue date']
   },
-  status: {
+  institution: {
     type: String,
-    enum: ['pending', 'completed', 'reviewed'],
-    default: 'pending'
+    default: ''
   }
 }, {
   timestamps: true

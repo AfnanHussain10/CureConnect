@@ -101,3 +101,30 @@ export const updateEmergencyContact = async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 };
+
+// Update patient status
+export const updatePatientStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    if (!status || !['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value. Must be "active" or "inactive"' });
+    }
+    
+    const patient = await Patient.findById(req.params.id);
+    
+    if (!patient) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+    
+    patient.status = status;
+    await patient.save();
+    
+    res.status(200).json({ 
+      message: `Patient status updated to ${status} successfully`,
+      patient
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};

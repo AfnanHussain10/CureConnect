@@ -5,18 +5,23 @@ import {
   getReports,
   getReportById,
   updateReport,
-  deleteReport
+  deleteReport,
+  downloadReport,
 } from '../controllers/report.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
-import upload from '../middleware/upload.middleware.js'; // Assuming you have upload middleware for reports
+import upload, { handleUploadError } from '../middleware/upload.middleware.js';
 
-// Routes for medical reports
 router.route('/')
-  .post(protect, authorize('doctor', 'admin'), upload.single('reportFile'), createReport) // Doctors/Admins can upload reports
-  .get(protect, getReports); // Authenticated users can get reports (controllers handle filtering)
+  .post(protect, authorize('doctor', 'admin', 'patient'), upload.single('reportFile'), handleUploadError, createReport)
+  .get(protect, getReports);
 
 router.route('/:id')
-  .get(protect, getReportById) // Authenticated users can get a specific report (controllers handle filtering/authorization)
-  .put(protect, authorize('doctor', 'admin'), updateReport) // Only the creating doctor or admin can update
-  .delete(protect, authorize('doctor', 'admin'), deleteReport); // Only the creating doctor or admin can delete
+  .get(protect, getReportById)
+  .put(protect, authorize('patient', 'admin'), upload.single('reportFile'), handleUploadError, updateReport)
+  .delete(protect, authorize('patient', 'admin'), deleteReport);
+
+// Route for downloading report files
+router.route('/:id/download')
+  .get(protect, downloadReport);
+
 export default router;

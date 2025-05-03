@@ -35,6 +35,11 @@ const PatientSchema = new mongoose.Schema({
     name: String,
     relationship: String,
     phoneNumber: String
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'active'
   }
 });
 

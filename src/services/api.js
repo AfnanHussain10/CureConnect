@@ -105,7 +105,7 @@ export const updateAppointmentStatus = async (appointmentId, status, token) => {
   try {
     console.log(`Updating appointment ${appointmentId} status to ${status}`);
     const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/status`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: { 
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -272,18 +272,75 @@ export const submitFeedback = async (appointmentId, feedbackData, token) => {
 };
 
 // Report API calls
-export const getReports = async (filters, token) => {
-  const queryString = new URLSearchParams(filters).toString();
-  const response = await fetch(`${API_BASE_URL}/reports?${queryString}`, {
+export const getReports = async (params, token) => {
+  // Construct query string from params object
+  const queryParams = new URLSearchParams(params).toString();
+  const response = await fetch(`${API_BASE_URL}/reports?${queryParams}`, {
+    method: 'GET',
     headers: { 
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     }
   });
-  
+
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'Failed to fetch reports');
-  return data;
+  // Ensure the backend returns an array, even if empty
+  return Array.isArray(data) ? data : []; 
+};
+
+export const deleteReport = async (id, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reports/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to delete report');
+    return data;
+  } catch (error) {
+    console.error('Delete report error:', error);
+    throw error;
+  }
+};
+
+export const getReportContent = async (id, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reports/${id}/download`, { // Use the download endpoint
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      // Try to parse error message if available
+      let errorMessage = 'Failed to fetch report content';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      throw new Error(errorMessage);
+    }
+
+    // Return the blob directly
+    const blob = await response.blob();
+    if (blob.type !== 'application/pdf') {
+      console.warn('Fetched content might not be a PDF:', blob.type);
+      // Optionally, you could throw an error here if strict PDF type is required
+      // throw new Error('Fetched content is not a PDF');
+    }
+    return blob;
+  } catch (error) {
+    console.error('Get report content error:', error);
+    throw error; // Rethrow to be handled by the calling component
+  }
 };
 
 export const createReport = async (reportData, token) => {
@@ -301,6 +358,48 @@ export const createReport = async (reportData, token) => {
   return data;
 };
 
+export const downloadReport = async (id, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reports/${id}/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to download report');
+    }
+    
+    // Create a blob from the response
+    const blob = await response.blob();
+    
+    // Create a URL for the blob
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create a temporary anchor element
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report-${id}.pdf`; // Default filename
+    
+    // Append to the document
+    document.body.appendChild(a);
+    
+    // Trigger a click on the element
+    a.click();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return true;
+  } catch (error) {
+    console.error('Download report error:', error);
+    throw error;
+  }
+};
+
 // Prescription API calls
 export const getPrescriptions = async (filters, token) => {
   const queryString = new URLSearchParams(filters).toString();
@@ -316,19 +415,25 @@ export const getPrescriptions = async (filters, token) => {
   return data;
 };
 
-export const createPrescription = async (prescriptionData, token) => {
-  const response = await fetch(`${API_BASE_URL}/prescriptions`, {
-    method: 'POST',
-    headers: { 
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(prescriptionData)
-  });
-  
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Failed to create prescription');
-  return data;
+export const createPrescription = async (formData, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/prescriptions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        // Content-Type is automatically set by browser for FormData
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create prescription');
+    }
+    return data;
+  } catch (error) {
+    throw new Error(`Failed to create prescription: ${error.message}`);
+  }
 };
 
 export const getPrescriptionById = async (id, token) => {
@@ -345,18 +450,64 @@ export const getPrescriptionById = async (id, token) => {
 };
 
 export const updatePrescription = async (id, prescriptionData, token) => {
+  // Check if prescriptionData is FormData
+  const isFormData = prescriptionData instanceof FormData;
+  
   const response = await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
     method: 'PUT',
     headers: { 
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      // Only set Content-Type for JSON data, browser will set it automatically for FormData
+      ...(!isFormData && { 'Content-Type': 'application/json' })
     },
-    body: JSON.stringify(prescriptionData)
+    // If it's FormData, send it directly; otherwise, stringify the JSON
+    body: isFormData ? prescriptionData : JSON.stringify(prescriptionData)
   });
   
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'Failed to update prescription');
   return data;
+};
+
+export const deletePrescription = async (id, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to delete prescription');
+    return data;
+  } catch (error) {
+    console.error('Delete prescription error:', error);
+    throw error;
+  }
+};
+
+export const downloadPrescription = async (id, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/prescriptions/${id}/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to download prescription');
+    }
+    
+    const blob = await response.blob();
+    return blob;
+  } catch (error) {
+    console.error('Download prescription error:', error);
+    throw error;
+  }
 };
 
 // Patient API calls
@@ -374,15 +525,48 @@ export const getAllPatients = async (token) => {
 
 // Reviews API calls
 export const getReviews = async (token) => {
-  const response = await fetch(`${API_BASE_URL}/reviews`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+  try {
+    const response = await fetch(`${API_BASE_URL}/reviews`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
     }
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || 'Failed to fetch reviews');
-  return data;
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to fetch reviews');
+    return data;
+  } catch (error) {
+    console.error('Fetch reviews error:', error);
+    throw error;
+  }
+};
+
+export const createReview = async (reviewData, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reviewData)
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to submit review');
+    return data;
+  } catch (error) {
+    console.error('Create review error:', error);
+    throw error;
+  }
 };
 
 export const getPatientById = async (id, token) => {
@@ -413,6 +597,33 @@ export const updatePatientProfile = async (id, profileData, token) => {
   return data;
 };
 
+export const updateDoctorProfile = async (doctorId, profileData, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/doctors/${doctorId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(profileData)
+    });
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update doctor profile');
+    return { data: data }; // Wrap the response data to match expected format
+  } catch (error) {
+    console.error('Update doctor profile error:', error);
+    throw error;
+  }
+};
+
 export const updateDoctorStatus = async (doctorId, status, token) => {
   const response = await fetch(`${API_BASE_URL}/doctors/${doctorId}/status`, {
     method: 'PATCH',
@@ -426,4 +637,25 @@ export const updateDoctorStatus = async (doctorId, status, token) => {
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'Failed to update doctor status');
   return data;
+};
+
+// Update patient status
+export const updatePatientStatus = async (patientId, status, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/patients/${patientId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update patient status');
+    return data;
+  } catch (error) {
+    console.error('Update patient status error:', error);
+    throw error;
+  }
 };

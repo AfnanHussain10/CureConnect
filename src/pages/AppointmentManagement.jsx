@@ -305,14 +305,16 @@ function AppointmentManagement({
     }
 
     try {
-      const response = await api.submitFeedback(
-        selectedAppointment._id,
-        { rating: feedbackData.rating, comment: feedbackData.comment },
-        token,
-      )
+      const reviewData = {
+        appointmentId: selectedAppointment._id,
+        rating: parseInt(feedbackData.rating),
+        comment: feedbackData.comment.trim(),
+      };
+
+      const response = await api.createReview(reviewData, token);
 
       setPastAppointments((prev) =>
-        prev.map((app) => (app._id === selectedAppointment._id ? { ...app, feedback: response.data.feedback } : app)),
+        prev.map((app) => (app._id === selectedAppointment._id ? { ...app, review: response.data } : app)),
       )
 
       toast({

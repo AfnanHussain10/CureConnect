@@ -65,6 +65,9 @@ const DoctorSchema = new mongoose.Schema({
   }]
 });
 
+// Add geospatial index for location-based queries
+DoctorSchema.index({ location: '2dsphere' });
+
 const Doctor = User.discriminator('Doctor', DoctorSchema);
 
 export default Doctor;

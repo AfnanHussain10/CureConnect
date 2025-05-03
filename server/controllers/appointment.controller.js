@@ -49,6 +49,7 @@ export const getAppointmentById = async (req, res) => {
       });
     }
 
+    res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
       success: true,
       data: appointment
@@ -265,6 +266,7 @@ export const updateAppointment = async (req, res) => {
       }
     }
 
+    res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
       success: true,
       data: appointment
@@ -391,6 +393,7 @@ export const updateStatus = async (req, res) => {
       // Continue despite email failure
     }
     
+    res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
       success: true,
       data: appointment
@@ -474,11 +477,19 @@ export const completeAppointment = async (req, res) => {
 
 import Appointment from '../models/Appointment.model.js';
 import Doctor from '../models/Doctor.model.js';
+import mongoose from 'mongoose';
 
 export const submitFeedback = async (req, res) => {
   try {
-    const { appointmentId } = req.params;
     const { rating, comment } = req.body;
+    const appointmentId = req.params.id;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating is required and must be between 1 and 5'
+      });
+    }
 
     const appointment = await Appointment.findById(appointmentId);
     if (!appointment) {
@@ -488,23 +499,51 @@ export const submitFeedback = async (req, res) => {
       });
     }
 
-    appointment.feedback = { rating, comment };
+    if (appointment.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Feedback can only be submitted for completed appointments'
+      });
+    }
+
+    if (appointment.feedback) {
+      return res.status(400).json({
+        success: false,
+        message: 'Feedback has already been submitted for this appointment'
+      });
+    }
+
+    // Verify that the user submitting feedback is the patient
+    if (req.user.id !== appointment.patientId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to submit feedback for this appointment'
+      });
+    }
+
+    appointment.feedback = { rating, comment: comment || '' };
     await appointment.save();
 
     // Update doctor's average rating
     const doctor = await Doctor.findById(appointment.doctorId);
-    doctor.rating = (doctor.rating * doctor.reviewCount + rating) / (doctor.reviewCount + 1);
-    doctor.reviewCount += 1;
-    await doctor.save();
+    if (doctor) {
+      const currentRating = doctor.rating || 0;
+      const currentReviewCount = doctor.reviewCount || 0;
+      doctor.rating = (currentRating * currentReviewCount + rating) / (currentReviewCount + 1);
+      doctor.reviewCount = currentReviewCount + 1;
+      await doctor.save();
+    }
 
+    res.setHeader('Content-Type', 'application/json');
     res.status(200).json({
       success: true,
       data: appointment
     });
   } catch (error) {
+    console.error('Error submitting feedback:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Internal server error'
     });
   }
 };

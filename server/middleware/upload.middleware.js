@@ -1,27 +1,64 @@
+// upload.middleware.js
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs/promises';
+import { fileURLToPath } from 'url';
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Define the upload directory
+const uploadDir = path.join(__dirname, '../uploads/reports');
+
+// Ensure the upload directory exists
+(async () => {
+  try {
+    await fs.mkdir(uploadDir, { recursive: true });
+    console.log(`Created upload directory: ${uploadDir}`);
+  } catch (error) {
+    console.error(`Failed to create upload directory: ${error.message}`);
   }
+})();
+
+// Configure storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir); // Use the defined upload directory
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
 });
 
+// File filter to allow specific file types (optional)
 const fileFilter = (req, file, cb) => {
-  // Accept only certain file types (e.g., images, pdfs)
-  const allowedTypes = /jpeg|jpg|png|pdf/;
+  const allowedTypes = /pdf|jpg|jpeg|png/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
+
   if (extname && mimetype) {
     return cb(null, true);
-  } else {
-    cb(new Error('Only images and PDFs are allowed'));
   }
+  cb(new Error('Only PDF, JPG, JPEG, and PNG files are allowed'));
 };
 
-export const upload = multer({ storage, fileFilter });
+// Initialize Multer
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+});
 
-export default upload;
+// Add error handling middleware
+const handleUploadError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err.message);
+    return res.status(400).json({ success: false, message: `Upload error: ${err.message}` });
+  }
+  next(err);
+};
+
+// Export both the upload middleware and the error handler
+export { upload as default, handleUploadError };

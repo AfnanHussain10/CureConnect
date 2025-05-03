@@ -6,13 +6,14 @@ import {
   Save,
   User
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { toast } from '../components/ui/use-toast';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from '../../components/ui/use-toast';
+import * as api from '../../services/api';
 
 function DoctorProfile() {
   const navigate = useNavigate();
   const params = useParams();
-  const { user, updateUserProfile, doctors } = useAuth();
+  const { user, token, doctors, updateUserProfile: contextUpdateUserProfile } = useAuth(); // Get token and rename context function
   
   // Determine if viewing own profile or another doctor's profile
   const isOwnProfile = !params.doctorId;
@@ -21,12 +22,13 @@ function DoctorProfile() {
   const [formData, setFormData] = useState({
     name: profileUser?.name || '',
     email: profileUser?.email || '',
-    phone: profileUser?.phone || '',
     specialization: profileUser?.specialization || '',
     bio: profileUser?.bio || '',
-    experience: profileUser?.experience || '',
+    experience: profileUser?.experience || 0,
     education: profileUser?.education || '',
-    location: profileUser?.location || ''
+    location: profileUser?.location || '',
+    fees: profileUser?.fees || 0,
+    availableDays: profileUser?.availableDays || []
   });
 
   // Update formData if profileUser changes
@@ -35,12 +37,13 @@ function DoctorProfile() {
       setFormData({
         name: profileUser.name || '',
         email: profileUser.email || '',
-        phone: profileUser.phone || '',
         specialization: profileUser.specialization || '',
         bio: profileUser.bio || '',
-        experience: profileUser.experience || '',
+        experience: profileUser.experience || 0,
         education: profileUser.education || '',
-        location: profileUser.location || ''
+        location: profileUser.location || '',
+        fees: profileUser.fees || 0,
+        availableDays: profileUser.availableDays || []
       });
     }
   }, [profileUser]);
@@ -53,33 +56,43 @@ function DoctorProfile() {
     }));
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Update user profile
-    updateUserProfile(formData);
-    
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been successfully updated.",
-      status: "success"
-    });
+    if (!isOwnProfile || !user || !token) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your profile.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const updatedProfile = await api.updateDoctorProfile(user._id, formData, token);
+      
+      if (updatedProfile && updatedProfile.data) {
+        contextUpdateUserProfile(updatedProfile.data);
+        toast({
+          title: "Success",
+          description: "Your profile has been successfully updated."
+        });
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Could not update your profile. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <button 
-            onClick={() => navigate(-1)} 
-            className="flex items-center text-gray-600 hover:text-blue-600"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            <span>Back</span>
-          </button>
-        </div>
-      </div>
       
       {/* Profile Form */}
       <div className="container mx-auto px-4 py-8">
@@ -153,21 +166,6 @@ function DoctorProfile() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        id="phone"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        readOnly={!isOwnProfile}
-                      />
-                    </div>
-                    
-                    <div>
                       <label htmlFor="specialization" className="block text-sm font-medium text-gray-700 mb-1">
                         Specialization
                       </label>
@@ -176,6 +174,21 @@ function DoctorProfile() {
                         id="specialization"
                         name="specialization"
                         value={formData.specialization}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        readOnly={!isOwnProfile}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="fees" className="block text-sm font-medium text-gray-700 mb-1">
+                        Consultation Fees
+                      </label>
+                      <input
+                        type="number"
+                        id="fees"
+                        name="fees"
+                        value={formData.fees}
                         onChange={handleChange}
                         className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         readOnly={!isOwnProfile}
@@ -250,6 +263,29 @@ function DoctorProfile() {
                     placeholder="City, State"
                     readOnly={!isOwnProfile}
                   />
+                </div>
+                
+                <div>
+                  <label htmlFor="availableDays" className="block text-sm font-medium text-gray-700 mb-1">
+                    Available Days
+                  </label>
+                  <select
+                    id="availableDays"
+                    name="availableDays"
+                    multiple
+                    value={formData.availableDays}
+                    onChange={(e) => {
+                      const selectedDays = Array.from(e.target.selectedOptions, option => option.value);
+                      setFormData(prev => ({ ...prev, availableDays: selectedDays }));
+                    }}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={!isOwnProfile}
+                  >
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple days</p>
                 </div>
               </div>
               

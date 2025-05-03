@@ -1,70 +1,61 @@
 import mongoose from 'mongoose';
+import Appointment from './Appointment.model.js';
 
 const PrescriptionSchema = new mongoose.Schema({
-  doctorId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Doctor',
-    required: true
-  },
   patientId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Patient',
-    required: true
+    ref: 'User',
+    required: true,
   },
-  appointmentId: {
+  doctorId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Appointment'
+    ref: 'User',
+    required: true,
   },
   doctorName: {
     type: String,
-    required: true
+    required: true,
   },
-  patientName: {
+  appointmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Appointment',
+    required: true,
+    validate: {
+      validator: async function (appointmentId) {
+        const appointment = await Appointment.findById(appointmentId);
+        return appointment && appointment.status === 'completed';
+      },
+      message: 'Prescription can only be created for a completed appointment.',
+    },
+  },
+  notes: {
     type: String,
-    required: true
   },
-  diagnosis: {
+  medications: {
+    type: [
+      {
+        name: { type: String, required: true },
+        dosage: { type: String, required: true },
+        frequency: { type: String, required: true },
+        duration: { type: String, required: true },
+      },
+    ],
+    default: [],
+  },
+  fileUrl: {
     type: String,
-    required: [true, 'Please provide diagnosis']
   },
-  medications: [{
-    name: {
-      type: String,
-      required: true
-    },
-    dosage: {
-      type: String,
-      required: true
-    },
-    frequency: {
-      type: String,
-      required: true
-    },
-    duration: {
-      type: String,
-      required: true
-    },
-    instructions: String
-  }],
-  instructions: {
-    type: String,
-    default: ''
-  },
-  followUpDate: Date,
-  issuedDate: {
-    type: Date,
-    default: Date.now
-  },
-  expiryDate: Date,
   status: {
     type: String,
-    enum: ['active', 'completed', 'expired'],
-    default: 'active'
-  }
-}, {
-  timestamps: true
-});
+    enum: ['active', 'expired', 'cancelled'],
+    default: 'active',
+  },
+  followUpDate: {
+    type: Date,
+  },
+  expiryDate: {
+    type: Date,
+  },
+}, { timestamps: true });
 
-const Prescription = mongoose.model('Prescription', PrescriptionSchema);
-
-export default Prescription;
+export default mongoose.model('Prescription', PrescriptionSchema);
