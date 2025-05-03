@@ -209,9 +209,9 @@ function DoctorList() {
                     <div className="p-4 md:p-6 flex flex-col md:flex-row">
                       <div className="md:w-1/4 mb-4 md:mb-0">
                         <div className="relative mx-auto md:mx-0 w-24 h-24 md:w-32 md:h-32 bg-gray-200 rounded-full overflow-hidden">
-                          {doctor.image ? (
+                          {doctor.profileImage ? (
                             <img 
-                              src={doctor.image} 
+                              src={`http://localhost:5000${doctor.profileImage}`} 
                               alt={doctor.name} 
                               className="w-full h-full object-cover"
                             />
@@ -272,12 +272,6 @@ function DoctorList() {
                         </p>
                         
                         <div className="flex flex-col sm:flex-row gap-2">
-                          <Link 
-                            to={`/doctor/${doctor._id}`}
-                            className="text-center px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50"
-                          >
-                            View Profile
-                          </Link>
                           {user?.role === 'patient' ? (
                             <Link 
                               to={`/book-appointment/${doctor._id}`}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Check, X, Edit, Search, MoreHorizontal, MapPin } from 'lucide-react';
+import { User, Check, X, Edit, Search, MoreHorizontal, MapPin, Trash2 } from 'lucide-react';
 import * as api from '../../services/api';
 import { toast } from '../../components/ui/use-toast';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
@@ -16,20 +16,14 @@ function DoctorManagement({ token }) {
     email: '',
     specialization: '',
     experience: '',
-    fees: ''
+    fees: '',
+    location: ''
   });
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusFormData, setStatusFormData] = useState({
     status: ''
   });
-  const [mapModalOpen, setMapModalOpen] = useState(false);
-  const [locationData, setLocationData] = useState({
-    lat: 0,
-    lng: 0,
-    address: ''
-  });
-  const mapRef = useRef(null);
-  const geocoderRef = useRef(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchDoctors();
@@ -95,110 +89,67 @@ function DoctorManagement({ token }) {
       specialization: doctor.specialization || '',
       experience: doctor.experience || '',
       fees: doctor.fees || '',
-      // Add location data if available
-      location: doctor.location || {
-        coordinates: [0, 0],
-        address: ''
-      }
+      location: doctor.location || ''
     });
     setEditModalOpen(true);
   };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
-      // Include location data in the update
-      const updatedDoctor = await api.updateDoctorProfile(selectedDoctor._id, {
-        ...editFormData,
-        location: {
-          type: 'Point',
-          coordinates: [locationData.lng, locationData.lat],
-          address: locationData.address
-        }
-      }, token);
-      
-      setDoctors(prev =>
+      console.log('Sending editFormData:', editFormData);
+      const updatedDoctorResponse = await api.updateDoctorProfile(selectedDoctor._id, editFormData, token);
+      const updatedDoctor = updatedDoctorResponse.data;
+      console.log('Received updatedDoctor:', updatedDoctor);
+
+      setDoctors(prev => {
+        const newDoctors = prev.map(d => (d._id === selectedDoctor._id ? { ...d, ...updatedDoctor } : d));
+        console.log('Updated doctors state:', newDoctors);
+        return newDoctors;
+      });
+      setPendingDoctors(prev =>
         prev.map(d => (d._id === selectedDoctor._id ? { ...d, ...updatedDoctor } : d))
       );
       setEditModalOpen(false);
       toast({ title: "Success", description: "Doctor profile updated successfully.", variant: "success" });
     } catch (error) {
+      console.error('Update error:', error);
       toast({ 
         title: "Error", 
         description: error?.response?.data?.message || error.message || "Failed to update doctor profile.", 
         variant: "destructive" 
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // New function to handle opening the map modal
-  const handleOpenMapModal = () => {
-    // Initialize with doctor's existing location if available
-    if (selectedDoctor?.location?.coordinates?.length === 2) {
-      setLocationData({
-        lng: selectedDoctor.location.coordinates[0],
-        lat: selectedDoctor.location.coordinates[1],
-        address: selectedDoctor.location.address || ''
+  const handleDeleteDoctor = async (doctorId, doctorName) => {
+    if (!window.confirm(`Are you sure you want to delete ${doctorName}? This action cannot be undone.`)) {
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await api.deleteDoctor(doctorId, token);
+      setDoctors(prev => prev.filter(d => d._id !== doctorId));
+      setPendingDoctors(prev => prev.filter(d => d._id !== doctorId));
+      toast({ title: "Success", description: "Doctor deleted successfully.", variant: "success" });
+    } catch (error) {
+      toast({ 
+        title: "Error", 
+        description: error?.response?.data?.message || error.message || "Failed to delete doctor.", 
+        variant: "destructive" 
       });
-    } else {
-      // Default to a central location if no coordinates are available
-      setLocationData({
-        lat: 24.7136, // Default to Dhaka, Bangladesh or another appropriate default
-        lng: 90.4042,
-        address: ''
-      });
+    } finally {
+      setIsSubmitting(false);
     }
-    setMapModalOpen(true);
-  };
-
-  // Function to handle map click and get address
-  const handleMapClick = (event) => {
-    const { lat, lng } = event.latLng;
-    setLocationData({
-      ...locationData,
-      lat: lat(),
-      lng: lng()
-    });
-    
-    // Use Geocoder to get address from coordinates
-    if (geocoderRef.current) {
-      geocoderRef.current.geocode(
-        { location: { lat: lat(), lng: lng() } },
-        (results, status) => {
-          if (status === "OK" && results[0]) {
-            setLocationData(prev => ({
-              ...prev,
-              address: results[0].formatted_address
-            }));
-          }
-        }
-      );
-    }
-  };
-
-  // Function to save location and close map modal
-  const handleSaveLocation = () => {
-    setEditFormData(prev => ({
-      ...prev,
-      location: {
-        type: 'Point',
-        coordinates: [locationData.lng, locationData.lat],
-        address: locationData.address
-      }
-    }));
-    setMapModalOpen(false);
-  };
-
-  // Function to initialize geocoder
-  const onMapLoad = (map) => {
-    mapRef.current = map;
-    geocoderRef.current = new window.google.maps.Geocoder();
   };
 
   const handleModalClose = () => {
     setEditModalOpen(false);
     setSelectedDoctor(null);
-    setEditFormData({ name: '', email: '', specialization: '', experience: '', fees: '' });
+    setEditFormData({ name: '', email: '', specialization: '', experience: '', fees: '', location: '' });
   };
 
   const handleStatusModalClose = () => {
@@ -208,6 +159,7 @@ function DoctorManagement({ token }) {
   };
 
   const handleUpdateStatus = (doctor) => {
+    console.log('Opening status modal for doctor:', doctor._id);
     setSelectedDoctor(doctor);
     setStatusFormData({
       status: doctor.status
@@ -217,19 +169,29 @@ function DoctorManagement({ token }) {
 
   const handleStatusSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
+      console.log('Submitting status update:', statusFormData.status);
       await api.updateDoctorStatus(selectedDoctor._id, statusFormData.status, token);
-      setDoctors(prev =>
-        prev.map(d => (d._id === selectedDoctor._id ? { ...d, status: statusFormData.status } : d))
+      setDoctors(prev => {
+        const newDoctors = prev.map(d => (d._id === selectedDoctor._id ? { ...d, status: statusFormData.status } : d));
+        console.log('Updated doctors state:', newDoctors);
+        return newDoctors;
+      });
+      setPendingDoctors(prev =>
+        prev.filter(d => d._id !== selectedDoctor._id || statusFormData.status !== 'pending')
       );
       setStatusModalOpen(false);
       toast({ title: "Success", description: "Doctor status updated successfully.", variant: "success" });
     } catch (error) {
+      console.error('Status update error:', error);
       toast({ 
         title: "Error", 
         description: error?.response?.data?.message || error.message || "Failed to update doctor status.", 
         variant: "destructive" 
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -289,9 +251,9 @@ function DoctorManagement({ token }) {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                          {doctor.image ? (
+                          {doctor.profileImage ? (
                             <img
-                              src={doctor.image}
+                              src={`http://localhost:5000${doctor.profileImage}`}
                               alt={doctor.name}
                               className="h-10 w-10 rounded-full"
                               onError={(e) => (e.target.style.display = 'none')}
@@ -318,12 +280,14 @@ function DoctorManagement({ token }) {
                       <button
                         onClick={() => handleApproveDoctorRegistration(doctor._id)}
                         className="text-green-600 hover:text-green-900 mr-4"
+                        disabled={isSubmitting}
                       >
                         <Check className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => handleRejectDoctorRegistration(doctor._id)}
                         className="text-red-600 hover:text-red-900"
+                        disabled={isSubmitting}
                       >
                         <X className="h-5 w-5" />
                       </button>
@@ -363,9 +327,9 @@ function DoctorManagement({ token }) {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center mr-3">
-                        {doctor.image ? (
+                        {doctor.profileImage ? (
                           <img
-                            src={doctor.image}
+                            src={`http://localhost:5000${doctor.profileImage}`}
                             alt={doctor.name}
                             className="h-10 w-10 rounded-full"
                             onError={(e) => (e.target.style.display = 'none')}
@@ -397,14 +361,23 @@ function DoctorManagement({ token }) {
                     <button
                       onClick={() => handleEditDoctor(doctor)}
                       className="text-indigo-600 hover:text-indigo-900 mr-4"
+                      disabled={isSubmitting}
                     >
                       <Edit className="h-5 w-5" />
                     </button>
                     <button
                       onClick={() => handleUpdateStatus(doctor)}
-                      className="text-blue-600 hover:text-blue-900"
+                      className="text-blue-600 hover:text-blue-900 mr-4"
+                      disabled={isSubmitting}
                     >
                       <MoreHorizontal className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDoctor(doctor._id, doctor.name)}
+                      className="text-red-600 hover:text-red-900"
+                      disabled={isSubmitting}
+                    >
+                      <Trash2 className="h-5 w-5" />
                     </button>
                   </td>
                 </tr>
@@ -432,6 +405,7 @@ function DoctorManagement({ token }) {
                     value={editFormData.name}
                     onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="mb-4">
@@ -445,6 +419,7 @@ function DoctorManagement({ token }) {
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="mb-4">
@@ -457,6 +432,7 @@ function DoctorManagement({ token }) {
                     type="text"
                     value={editFormData.specialization}
                     onChange={(e) => setEditFormData({ ...editFormData, specialization: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="mb-4">
@@ -469,9 +445,10 @@ function DoctorManagement({ token }) {
                     type="number"
                     value={editFormData.experience}
                     onChange={(e) => setEditFormData({ ...editFormData, experience: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="fees">
                     Consultation Fees ($)
                   </label>
@@ -481,19 +458,35 @@ function DoctorManagement({ token }) {
                     type="number"
                     value={editFormData.fees}
                     onChange={(e) => setEditFormData({ ...editFormData, fees: e.target.value })}
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="location">
+                    Location
+                  </label>
+                  <input
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    id="location"
+                    type="text"
+                    value={editFormData.location}
+                    onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <button
                     className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                     type="submit"
+                    disabled={isSubmitting}
                   >
-                    Save Changes
+                    {isSubmitting ? 'Saving...' : 'Save Changes'}
                   </button>
                   <button
                     className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                     type="button"
                     onClick={handleModalClose}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </button>
@@ -516,11 +509,13 @@ function DoctorManagement({ token }) {
                     Status
                   </label>
                   <select
+                    class перестать
                     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                     id="status"
                     value={statusFormData.status}
                     onChange={(e) => setStatusFormData({ ...statusFormData, status: e.target.value })}
                     required
+                    disabled={isSubmitting}
                   >
                     <option value="">Select Status</option>
                     <option value="active">Active</option>
@@ -533,13 +528,15 @@ function DoctorManagement({ token }) {
                   <button
                     className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                     type="submit"
+                    disabled={isSubmitting}
                   >
-                    Update Status
+                    {isSubmitting ? 'Updating...' : 'Update Status'}
                   </button>
                   <button
                     className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                     type="button"
                     onClick={handleStatusModalClose}
+                    disabled={isSubmitting}
                   >
                     Cancel
                   </button>

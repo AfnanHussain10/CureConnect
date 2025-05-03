@@ -131,6 +131,78 @@ export const updateAppointmentStatus = async (appointmentId, status, token) => {
   }
 };
 
+// Review API calls
+export const updateReviewStatus = async (reviewId, status, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+    
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Handle non-JSON response
+      const text = await response.text();
+      console.log('Non-JSON response received:', text);
+      throw new Error('Server returned an invalid response format. Please try again later.');
+    }
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Failed to update review status');
+    return data;
+  } catch (error) {
+    console.error('Update review status error:', error);
+    throw error;
+  }
+};
+
+export const deleteReview = async (reviewId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || 'Failed to delete review');
+    }
+    return true;
+  } catch (error) {
+    console.error('Delete review error:', error);
+    throw error;
+  }
+};
+
+
+export const deletePatient = async (patientId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || 'Failed to delete patient');
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Failed to delete patient:', error);
+    throw error;
+  }
+};
 
 export const completeAppointment = async (appointmentId, token) => {
   try {
@@ -381,7 +453,7 @@ export const downloadReport = async (id, token) => {
     // Create a temporary anchor element
     const a = document.createElement('a');
     a.href = url;
-    a.download = `report-${id}.pdf`; // Default filename
+    a.download = `report-${id}`; // Default filename
     
     // Append to the document
     document.body.appendChild(a);
@@ -583,13 +655,14 @@ export const getPatientById = async (id, token) => {
 };
 
 export const updatePatientProfile = async (id, profileData, token) => {
+  const isFormData = profileData instanceof FormData;
   const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
     method: 'PUT',
     headers: { 
       'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      ...(!isFormData && { 'Content-Type': 'application/json' })
     },
-    body: JSON.stringify(profileData)
+    body: isFormData ? profileData : JSON.stringify(profileData)
   });
   
   const data = await response.json();
@@ -597,27 +670,30 @@ export const updatePatientProfile = async (id, profileData, token) => {
   return data;
 };
 
+// Update doctor profile
 export const updateDoctorProfile = async (doctorId, profileData, token) => {
   try {
+    // Check if profileData is FormData (contains a file)
+    const isFormData = profileData instanceof FormData;
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+    };
+
+    // Don't set Content-Type if it's FormData, browser will set it with boundary
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const response = await fetch(`${API_BASE_URL}/doctors/${doctorId}`, {
       method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(profileData)
+      headers: headers,
+      body: isFormData ? profileData : JSON.stringify(profileData)
     });
-    
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      console.error('Non-JSON response received:', text);
-      throw new Error('Server returned an invalid response format. Please try again later.');
-    }
-    
+
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'Failed to update doctor profile');
-    return { data: data }; // Wrap the response data to match expected format
+    return data; // Return the updated doctor data
   } catch (error) {
     console.error('Update doctor profile error:', error);
     throw error;

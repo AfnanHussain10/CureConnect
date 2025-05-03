@@ -6,7 +6,19 @@ import Doctor from '../models/Doctor.model.js';
 export const getReviews = async (req, res) => {
   try {
     const { doctorId } = req.query;
-    const query = doctorId ? { doctorId } : {};
+    let query = {};
+    
+    // Admin can see all reviews
+    if (req.user.role === 'admin') {
+      query = doctorId ? { doctorId } : {};
+    } 
+    // Doctors can only see active reviews for themselves
+    else if (req.user.role === 'doctor') {
+      query = { 
+        doctorId: req.user.id,
+        status: 'approved'
+      };
+    }
     
     const reviews = await Review.find(query)
       .populate('appointmentId', 'date status')

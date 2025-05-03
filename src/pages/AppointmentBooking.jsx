@@ -199,9 +199,9 @@ function AppointmentBooking() {
           <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center">
             <div className="flex-shrink-0 mr-4">
               <div className="w-16 h-16 rounded-full overflow-hidden">
-                {doctor.image ? (
+                {doctor.profileImage ? (
                   <img
-                    src={doctor.image}
+                    src={`http://localhost:5000${doctor.profileImage}`}
                     alt={doctor.name}
                     className="w-full h-full object-cover"
                   />

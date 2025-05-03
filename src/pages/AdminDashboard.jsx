@@ -350,7 +350,7 @@ function AdminDashboard() {
                           </div>
                           <div className="flex-1">
                             <h4 className="text-sm font-medium">{patient.name}</h4>
-                            <p className="text-xs text-gray-500">Joined: {patient.registrationDate}</p>
+                            <p className="text-xs text-gray-500">{new Date(patient.createdAt).toLocaleDateString()}</p>
                           </div>
                           <span className="text-xs text-gray-600">
                             {patient.appointmentsCount} {patient.appointmentsCount === 1 ? 'appointment' : 'appointments'}
@@ -400,7 +400,7 @@ function AdminDashboard() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-500">
-                                {appointment.date}, {appointment.time}
+                              {new Date(appointment.date).toLocaleDateString()}, {appointment.time}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">

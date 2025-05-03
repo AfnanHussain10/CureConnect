@@ -17,7 +17,12 @@ const DashboardLayout = ({ children, activeTab, setActiveTab, user }) => {
               <p className="font-medium">Dr. {user?.name}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-              {user?.name ? user.name.charAt(0) : ''}
+            <img
+                className="h-10 w-10 rounded-full object-cover"
+                src={`http://localhost:5000${user.profileImage}`}
+                alt="User avatar"
+                onError={(e) => e.target.src = ''}
+              />
             </div>
           </div>
         </div>

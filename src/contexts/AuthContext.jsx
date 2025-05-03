@@ -85,6 +85,10 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password, userType) => {
     try {
       const { token: newToken, user: userData } = await api.loginUser(email, password);
+      // Check if user is inactive
+      if (userData.status === 'inactive') {
+        throw new Error('Your account is inactive. Please contact support.');
+      }
       
       setToken(newToken);
       localStorage.setItem('token', newToken);

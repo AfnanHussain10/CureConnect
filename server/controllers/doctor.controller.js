@@ -1,4 +1,44 @@
-//import Doctor from '../models/Doctor.model.js';
+// import Doctor from '../models/Doctor.model.js';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+// Import sendEmail utility at the top of the file
+import sendEmail from '../utils/sendEmail.js';
+import mongoose from 'mongoose';
+
+// Configure multer for profile image uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/profile-images';
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname && mimetype) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
+  }
+}).single('profileImage');
 
 // Get all doctors with optional filtering
 export const getDoctors = async (req, res) => {
@@ -33,24 +73,80 @@ export const getDoctorById = async (req, res) => {
 // Update doctor profile
 export const updateDoctor = async (req, res) => {
   try {
-    const updates = req.body;
     const doctor = await Doctor.findById(req.params.id);
 
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
 
-    // Prevent updating sensitive fields
-    delete updates.password;
-    delete updates.email;
-    delete updates.role;
+    // Handle file upload
+    upload(req, res, async (err) => {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({ message: 'File upload error: ' + err.message });
+      } else if (err) {
+        return res.status(400).json({ message: err.message });
+      }
 
-    Object.keys(updates).forEach(key => {
-      doctor[key] = updates[key];
+      try {
+        // Get updates from body - use JSON.parse for potential stringified fields
+        const updates = {};
+        for (const key in req.body) {
+          try {
+            updates[key] = JSON.parse(req.body[key]);
+          } catch (e) {
+            updates[key] = req.body[key]; // Keep as string if not valid JSON
+          }
+        }
+
+        // Prevent updating sensitive fields
+        delete updates.password;
+        delete updates.email;
+        delete updates.role;
+
+        // Handle profile image
+        if (req.file) {
+          // Delete old profile image if it exists and is not the default
+          if (doctor.profileImage && doctor.profileImage !== 'default-profile.jpg' && doctor.profileImage.startsWith('/uploads/profile-images/')) {
+            const oldImageName = path.basename(doctor.profileImage);
+            const oldImagePath = path.join('uploads/profile-images', oldImageName);
+            if (fs.existsSync(oldImagePath)) {
+              try {
+                 fs.unlinkSync(oldImagePath);
+              } catch (unlinkErr) {
+                 console.error("Error deleting old profile image:", unlinkErr);
+                 // Decide if you want to proceed or return an error
+              }
+            }
+          }
+          // Store relative path in database
+          doctor.profileImage = `/uploads/profile-images/${req.file.filename}`;
+        }
+
+        // Update other fields
+        Object.keys(updates).forEach(key => {
+          // Ensure arrays are handled correctly if sent as strings
+          if (key === 'availableDays' || key === 'availableTimeSlots') {
+             doctor[key] = Array.isArray(updates[key]) ? updates[key] : [updates[key]];
+          } else if (key !== 'profileImage') { // Avoid overwriting profileImage if no new file uploaded
+             doctor[key] = updates[key];
+          }
+        });
+
+        await doctor.save();
+        // Return the updated doctor, excluding the password
+        const updatedDoctor = await Doctor.findById(doctor._id).select('-password');
+        res.status(200).json(updatedDoctor);
+      } catch (error) {
+        // If file was uploaded but save failed, delete the uploaded file
+        if (req.file) {
+            const tempImagePath = path.join('uploads/profile-images', req.file.filename);
+            if (fs.existsSync(tempImagePath)) {
+                fs.unlinkSync(tempImagePath);
+            }
+        }
+        res.status(400).json({ message: error.message });
+      }
     });
-
-    await doctor.save();
-    res.status(200).json(doctor);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -220,6 +316,4 @@ async function cancelDoctorAppointments(doctorId, reason) {
   }
 };
 
-// Import sendEmail utility at the top of the file
-import sendEmail from '../utils/sendEmail.js';
-import mongoose from 'mongoose';
+

@@ -29,6 +29,7 @@ function AppointmentManagement({ token }) {
     try {
       const response = await api.getAppointments(token);
       setAppointments(response);
+      console.log(response);
     } catch (error) {
       console.error('Failed to fetch appointments:', error);
       toast({
@@ -52,6 +53,7 @@ function AppointmentManagement({ token }) {
     
     return matchesSearch && matchesStatus;
   });
+
 
   // Pagination
   const indexOfLastAppointment = currentPage * appointmentsPerPage;
@@ -323,9 +325,17 @@ function AppointmentManagement({ token }) {
                 <tr key={appointment._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-                        {appointment.patientId?.name?.charAt(0) || '?'}
-                      </div>
+                      {appointment.patientId?.profileImage ? (
+                        <img 
+                          src={`http://localhost:5000${appointment.patientId?.profileImage}`} 
+                          alt={appointment.patientId?.name}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                          {patient.name.charAt(0)}
+                        </div>
+                      )}
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{appointment.patientId?.name || 'Unknown'}</div>
                         <div className="text-sm text-gray-500">{appointment.patientId?.email || 'No email'}</div>

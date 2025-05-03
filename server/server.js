@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 
 // Import routes
 import authRoutes from './routes/auth.routes.js';
@@ -43,6 +44,10 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/reviews', reviewRoutes);
+
+// Serve static files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

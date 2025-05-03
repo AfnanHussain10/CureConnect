@@ -9,7 +9,7 @@ export const getAppointments = async (req, res) => {
 
     if (role === 'doctor') {
       appointments = await Appointment.find({ doctorId: id })
-        .populate('patientId', 'name email phoneNumber')
+        .populate('patientId', 'name email phoneNumber profileImage')
         .sort({ date: 1, time: 1 });
     } else if (role === 'patient') {
       appointments = await Appointment.find({ patientId: id })
@@ -18,7 +18,7 @@ export const getAppointments = async (req, res) => {
     } else if (role === 'admin') {
       appointments = await Appointment.find({})
         .populate('doctorId', 'name specialization')
-        .populate('patientId', 'name email')
+        .populate('patientId', 'name email profileImage')
         .sort({ date: 1, time: 1 });
     }
 

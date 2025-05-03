@@ -70,25 +70,9 @@ const Navbar = () => {
                       <Users className="h-4 w-4" />
                       <span>Find Doctors</span>
                     </Link>
-                    <Link to="/patient-profile" className={`flex items-center gap-1 px-3 py-2 rounded-md ${isActive('/patient-profile') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>
-                      <User className="h-4 w-4" />
-                      <span>Profile</span>
-                    </Link>
                   </>
                 )}
                 
-                {user.role === 'doctor' && (
-                  <>
-                    <Link to="/appointments" className={`flex items-center gap-1 px-3 py-2 rounded-md ${isActive('/appointments') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>
-                      <Calendar className="h-4 w-4" />
-                      <span>Appointments</span>
-                    </Link>
-                    <Link to="/prescriptions" className={`flex items-center gap-1 px-3 py-2 rounded-md ${isActive('/prescriptions') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>
-                      <Settings className="h-4 w-4" />
-                      <span>Prescriptions</span>
-                    </Link>
-                  </>
-                )}
               </>
             ) : (
               <>
@@ -106,9 +90,6 @@ const Navbar = () => {
           <div className="flex items-center gap-2">
             {user ? (
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-600 hidden md:inline-block">
-                  Hello, {user.name}
-                </span>
                 <Button 
                   variant="outline" 
                   size="sm" 

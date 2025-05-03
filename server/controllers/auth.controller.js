@@ -75,8 +75,37 @@ export const login = async (req, res) => {
 
     if (user.userType === 'Doctor') {
       user = await Doctor.findById(user._id).select('+password');
-    } else if (user.userType === 'Patient') {
+    
+      if (user.status === 'pending') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account is under review. Please wait for approval.',
+        });
+      }
+    
+      if (user.status === 'rejected') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your application was rejected. Please contact support for more information.',
+        });
+      }
+    
+      if (user.status === 'suspended') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account has been suspended. Please contact support.',
+        });
+      }
+    }
+    else if (user.userType === 'Patient') {
       user = await Patient.findById(user._id).select('+password');
+    
+      if (user.status === 'inactive') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account is currently inactive. Please contact support to reactivate it.',
+        });
+      }
     }
 
     const isMatch = await user.matchPassword(password);

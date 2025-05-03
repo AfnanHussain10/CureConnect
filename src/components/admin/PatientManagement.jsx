@@ -114,12 +114,11 @@ function PatientManagement() {
     }
     
     try {
-      // Since there's no deletePatient function, you can use updatePatientStatus to set status to 'inactive'
-      await api.updatePatientStatus(patientId, 'inactive', token);
+      await api.deletePatient(patientId, token);
       setPatients(prev => prev.filter(p => p._id !== patientId));
       toast({
         title: "Success",
-        description: "Patient deactivated successfully",
+        description: "Patient deleted successfully",
       });
     } catch (error) {
       console.error('Failed to delete patient:', error);
@@ -154,13 +153,6 @@ function PatientManagement() {
               onChange={handleSearch}
             />
           </div>
-          <button
-            className="ml-4 bg-blue-600 text-white px-4 py-2 rounded-md flex items-center hover:bg-blue-700"
-            onClick={() => {/* Add new patient functionality */}}
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add Patient
-          </button>
         </div>
       </div>
 
@@ -186,9 +178,17 @@ function PatientManagement() {
                 <tr key={patient._id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-                        {patient.name.charAt(0)}
-                      </div>
+                      {patient.profileImage ? (
+                        <img 
+                          src={`http://localhost:5000${patient.profileImage}`} 
+                          alt={patient.name}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                          {patient.name.charAt(0)}
+                        </div>
+                      )}
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{patient.name}</div>
                       </div>

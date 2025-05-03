@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, FileText, User, Download, Upload, Trash2 } from 'lucide-react';
+import { Calendar, FileText, User, Download, Upload, Trash2, Save } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from '../components/ui/use-toast';
@@ -21,6 +21,27 @@ function PatientDashboard() {
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFileName, setSelectedFileName] = useState('');
+  
+  // State for patient profile
+  const [patientProfile, setPatientProfile] = useState(null);
+  const [profileFormData, setProfileFormData] = useState({
+    name: '',
+    phoneNumber: '',
+    dateOfBirth: '',
+    gender: '',
+    address: '',
+    medicalHistory: '',
+    bloodGroup: '',
+    allergies: [],
+    emergencyContact: {
+      name: '',
+      relationship: '',
+      phoneNumber: ''
+    },
+    profileImage: ''
+  });
+  const [selectedProfileImage, setSelectedProfileImage] = useState(null);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   // Show success message if redirected from appointment booking
   useEffect(() => {
@@ -33,63 +54,102 @@ function PatientDashboard() {
     }
   }, [location]);
 
-  // Fetch appointments, reports, and prescriptions when user is logged in
+  // Fetch appointments, reports, prescriptions, and patient profile when user is logged in
   useEffect(() => {
     const fetchData = async () => {
-      if (user && token) {
-        setLoading(true);
+      if (!user || !user._id || !token) {
+        console.error('User or token is missing');
+        setLoading(false);
+        return;
+      }
+  
+      setLoading(true);
+      try {
+        // Fetch appointments
+        const appointmentsResponse = await api.getAppointments(token);
+        const appointmentsData = appointmentsResponse;
+  
+        // Split appointments into upcoming and past
+        const upcoming = [];
+        const past = [];
+        appointmentsData.forEach(appointment => {
+          const appointmentDate = new Date(appointment.date);
+          const today = new Date();
+          if (appointment.status === 'completed' || appointment.status === 'cancelled' || appointmentDate < today) {
+            past.push(appointment);
+          } else {
+            upcoming.push(appointment);
+          }
+        });
+        setUpcomingAppointments(upcoming);
+        setPastAppointments(past);
+  
+        // Fetch medical reports
         try {
-          // Fetch appointments
-          const appointmentsResponse = await api.getAppointments(token);
-          const appointmentsData = appointmentsResponse;
-          
-          // Split appointments into upcoming and past
-          const upcoming = [];
-          const past = [];
-          
-          appointmentsData.forEach(appointment => {
-            const appointmentDate = new Date(appointment.date);
-            const today = new Date();
-            
-            if (appointment.status === 'completed' || appointment.status === 'cancelled' || appointmentDate < today) {
-              past.push(appointment);
-            } else {
-              upcoming.push(appointment);
-            }
-          });
-          
-          setUpcomingAppointments(upcoming);
-          setPastAppointments(past);
-          
-          // Fetch medical reports
-          try {
-            const reportsData = await api.getReports({ patientId: user._id }, token);
-            setMedicalReports(reportsData);
-          } catch (error) {
-            console.error('Failed to fetch reports:', error);
-          }
-          
-          // Fetch prescriptions
-          try {
-            const prescriptionsData = await api.getPrescriptions({ patientId: user._id }, token);
-            setPrescriptions(prescriptionsData);
-          } catch (error) {
-            console.error('Failed to fetch prescriptions:', error);
-          }
-          
+          const reportsData = await api.getReports({ patientId: user._id }, token);
+          setMedicalReports(reportsData);
         } catch (error) {
-          console.error('Failed to fetch data:', error);
+          console.error('Failed to fetch reports:', error);
           toast({
             title: "Error",
-            description: "Failed to load your data. Please try again later.",
+            description: error.message || "Failed to load medical reports",
             variant: "destructive",
           });
-        } finally {
-          setLoading(false);
         }
+  
+        // Fetch prescriptions
+        try {
+          const prescriptionsData = await api.getPrescriptions({ patientId: user._id }, token);
+          setPrescriptions(prescriptionsData);
+        } catch (error) {
+          console.error('Failed to fetch prescriptions:', error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to load prescriptions",
+            variant: "destructive",
+          });
+        }
+  
+        // Fetch patient profile
+        try {
+          const patientData = await api.getPatientById(user._id, token);
+          setPatientProfile(patientData);
+          setProfileFormData({
+            name: patientData.name || '',
+            phoneNumber: patientData.phoneNumber || '',
+            dateOfBirth: patientData.dateOfBirth ? new Date(patientData.dateOfBirth).toISOString().split('T')[0] : '',
+            gender: patientData.gender || '',
+            address: patientData.address || '',
+            medicalHistory: patientData.medicalHistory || '',
+            bloodGroup: patientData.bloodGroup || '',
+            allergies: patientData.allergies || [],
+            emergencyContact: {
+              name: patientData.emergencyContact?.name || '',
+              relationship: patientData.emergencyContact?.relationship || '',
+              phoneNumber: patientData.emergencyContact?.phoneNumber || ''
+            },
+            profileImage: `http://localhost:5000${user.profileImage || ''}`
+          });
+        } catch (error) {
+          console.error('Failed to fetch patient profile:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load your profile data. Please try again later.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load your data. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
     };
-    
+  
     fetchData();
   }, [user, token]);
 
@@ -166,6 +226,123 @@ function PatientDashboard() {
       setSelectedFileName(file.name);
     }
   };
+  
+  // Profile form handlers
+  const handleProfileInputChange = (e) => {
+    const { name, value } = e.target;
+    setProfileFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleEmergencyContactChange = (e) => {
+    const { name, value } = e.target;
+    let fieldName = '';
+    
+    // Extract the actual field name from the input name
+    if (name === 'emergencyContactName') fieldName = 'name';
+    else if (name === 'emergencyContactRelationship') fieldName = 'relationship';
+    else if (name === 'emergencyContactPhoneNumber') fieldName = 'phoneNumber';
+    
+    setProfileFormData(prev => ({
+      ...prev,
+      emergencyContact: {
+        ...prev.emergencyContact,
+        [fieldName]: value
+      }
+    }));
+  };
+  
+  const handleAddAllergy = () => {
+    if (profileFormData.newAllergy && profileFormData.newAllergy.trim() !== '') {
+      setProfileFormData(prev => ({
+        ...prev,
+        allergies: [...prev.allergies, prev.newAllergy.trim()],
+        newAllergy: ''
+      }));
+    }
+  };
+  
+  const handleRemoveAllergy = (index) => {
+    setProfileFormData(prev => ({
+      ...prev,
+      allergies: prev.allergies.filter((_, i) => i !== index)
+    }));
+  };
+  
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedProfileImage(file);
+      // Create a preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileFormData(prev => ({ ...prev, profileImage: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user || !token) return;
+    
+    setIsUpdatingProfile(true);
+    
+    try {
+      const formData = new FormData();
+      
+      // Add profile image if selected
+      if (selectedProfileImage) {
+        formData.append('profileImage', selectedProfileImage);
+      }
+      
+      // Add other profile data
+      const profileData = {
+        phoneNumber: profileFormData.phoneNumber,
+        dateOfBirth: profileFormData.dateOfBirth,
+        gender: profileFormData.gender,
+        address: profileFormData.address,
+        medicalHistory: profileFormData.medicalHistory,
+        bloodGroup: profileFormData.bloodGroup || null,
+        allergies: profileFormData.allergies,
+        emergencyContact: profileFormData.emergencyContact
+      };
+      
+      // Append JSON data
+      Object.keys(profileData).forEach(key => {
+        if (key === 'emergencyContact') {
+          formData.append(key, JSON.stringify(profileData[key]));
+        } else if (key === 'allergies') {
+          profileData[key].forEach((allergy, index) => {
+            formData.append(`allergies[${index}]`, allergy);
+          });
+        } else {
+          formData.append(key, profileData[key]);
+        }
+      });
+      
+      // Call API to update profile
+      const updatedProfile = await api.updatePatientProfile(user._id, formData, token);
+      
+      // Update local state
+      setPatientProfile(updatedProfile);
+      
+      toast({
+        title: "Success",
+        description: "Your profile has been updated successfully.",
+      });
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update your profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
 
   if (loading && user) {
     return (
@@ -190,9 +367,10 @@ function PatientDashboard() {
                 <p className="text-sm text-gray-500">{user.email}</p>
               </div>
               <img
-                className="h-10 w-10 rounded-full"
-                src="https://randomuser.me/api/portraits/men/75.jpg"
+                className="h-10 w-10 rounded-full object-cover"
+                src={`http://localhost:5000${user.profileImage}`}
                 alt="User avatar"
+                onError={(e) => e.target.src = ''}
               />
             </div>
           </div>
@@ -621,118 +799,229 @@ function PatientDashboard() {
                     <div className="flex-shrink-0 mb-4 md:mb-0 md:mr-6">
                       <div className="relative">
                         <img 
-                          src="https://randomuser.me/api/portraits/men/75.jpg" 
+                          src={profileFormData.profileImage || user.profileImage || 'https://randomuser.me/api/portraits/men/75.jpg'} 
                           className="h-24 w-24 rounded-full object-cover"
                           alt="Profile"
+                          onError={(e) => e.target.src = 'https://randomuser.me/api/portraits/men/75.jpg'}
                         />
-                        <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-1 cursor-pointer">
+                        <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-1 cursor-pointer hover:bg-blue-700 transition-colors">
                           <Upload className="h-4 w-4" />
-                          <input type="file" className="sr-only" />
+                          <input 
+                            type="file" 
+                            className="sr-only" 
+                            accept="image/*"
+                            onChange={handleProfileImageChange}
+                          />
                         </label>
                       </div>
                     </div>
                     <div>
                       <h3 className="text-lg font-medium">{user.name}</h3>
                       <p className="text-gray-600">{user.email}</p>
+                      <p className="text-sm text-gray-500 mt-1">{patientProfile?.role || 'Patient'}</p>
                     </div>
                   </div>
-                  <form className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {loading ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : (
+                    <form className="space-y-6" onSubmit={(e) => {
+                      e.preventDefault();
+                      handleUpdateProfile();
+                    }}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                          <input 
+                            type="text" 
+                            name="name"
+                            value={profileFormData.name}
+                            onChange={handleProfileInputChange}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                            disabled={true} // Name is managed by User model
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                          <input 
+                            type="email" 
+                            value={user.email}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                            disabled={true} // Email is managed by User model
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                          <input 
+                            type="tel" 
+                            name="phoneNumber"
+                            value={profileFormData.phoneNumber}
+                            onChange={handleProfileInputChange}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                          <input 
+                            type="date" 
+                            name="dateOfBirth"
+                            value={profileFormData.dateOfBirth}
+                            onChange={handleProfileInputChange}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                          <select
+                            name="gender"
+                            value={profileFormData.gender}
+                            onChange={handleProfileInputChange}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
+                          <select
+                            name="bloodGroup"
+                            value={profileFormData.bloodGroup || ''}
+                            onChange={handleProfileInputChange}
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Select blood group</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                          </select>
+                        </div>
+                      </div>
+                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                         <input 
                           type="text" 
-                          defaultValue={user.name}
+                          name="address"
+                          value={profileFormData.address}
+                          onChange={handleProfileInputChange}
                           className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
+                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                        <input 
-                          type="email" 
-                          defaultValue={user.email}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
+                        <textarea 
+                          rows="4" 
+                          name="medicalHistory"
+                          value={profileFormData.medicalHistory}
+                          onChange={handleProfileInputChange}
                           className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
+                          placeholder="Enter your medical history"
+                        ></textarea>
                       </div>
+                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                        <input 
-                          type="tel" 
-                          defaultValue="(555) 123-4567"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
+                        <div className="flex items-center space-x-2">
+                          <input 
+                            type="text" 
+                            name="newAllergy"
+                            value={profileFormData.newAllergy || ''}
+                            onChange={handleProfileInputChange}
+                            className="flex-1 p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Add an allergy"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddAllergy}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {profileFormData.allergies.map((allergy, index) => (
+                            <div key={index} className="bg-gray-100 px-3 py-1 rounded-full flex items-center">
+                              <span>{allergy}</span>
+                              <button 
+                                type="button" 
+                                onClick={() => handleRemoveAllergy(index)}
+                                className="ml-2 text-red-500 hover:text-red-700"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                        <input 
-                          type="date" 
-                          defaultValue="1985-05-15"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact</label>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <input 
+                              type="text" 
+                              name="emergencyContactName"
+                              value={profileFormData.emergencyContact.name}
+                              onChange={handleEmergencyContactChange}
+                              className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Contact Name"
+                            />
+                          </div>
+                          <div>
+                            <input 
+                              type="text" 
+                              name="emergencyContactRelationship"
+                              value={profileFormData.emergencyContact.relationship}
+                              onChange={handleEmergencyContactChange}
+                              className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Relationship"
+                            />
+                          </div>
+                          <div>
+                            <input 
+                              type="tel" 
+                              name="emergencyContactPhoneNumber"
+                              value={profileFormData.emergencyContact.phoneNumber}
+                              onChange={handleEmergencyContactChange}
+                              className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Phone Number"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <input 
-                        type="text" 
-                        defaultValue="123 Main St"
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 mb-2"
-                      />
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <input 
-                          type="text" 
-                          defaultValue="New York"
-                          placeholder="City"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <input 
-                          type="text" 
-                          defaultValue="NY"
-                          placeholder="State"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <input 
-                          type="text" 
-                          defaultValue="10001"
-                          placeholder="Zip Code"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
+                      
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isUpdatingProfile}
+                          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed"
+                        >
+                          {isUpdatingProfile ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-4 w-4" />
+                              Save Changes
+                            </>
+                          )}
+                        </button>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Medical History (Optional)</label>
-                      <textarea 
-                        rows="4" 
-                        defaultValue="No significant medical history."
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                      ></textarea>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Information (Optional)</label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <input 
-                          type="text" 
-                          placeholder="Insurance Provider"
-                          defaultValue="HealthPlus"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Policy Number"
-                          defaultValue="HP12345678"
-                          className="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                      >
-                        Save Changes
-                      </button>
-                    </div>
-                  </form>
+                    </form>
+                  )}
                 </div>
               )}
             </div>

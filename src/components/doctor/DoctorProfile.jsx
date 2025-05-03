@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft,
   Save,
-  User
+  User,
+  Upload // Add Upload icon
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from '../../components/ui/use-toast';
@@ -18,6 +19,7 @@ function DoctorProfile() {
   // Determine if viewing own profile or another doctor's profile
   const isOwnProfile = !params.doctorId;
   const profileUser = isOwnProfile ? user : doctors?.find(d => d.id === params.doctorId);
+  const fileInputRef = useRef(null); // Ref for file input
   
   const [formData, setFormData] = useState({
     name: profileUser?.name || '',
@@ -30,8 +32,10 @@ function DoctorProfile() {
     fees: profileUser?.fees || 0,
     availableDays: profileUser?.availableDays || []
   });
+  const [selectedProfileImage, setSelectedProfileImage] = useState(null); // State for selected image file
+  const [profileImagePreview, setProfileImagePreview] = useState(''); // State for image preview URL
 
-  // Update formData if profileUser changes
+  // Update formData and preview if profileUser changes
   useEffect(() => {
     if (profileUser) {
       setFormData({
@@ -45,6 +49,10 @@ function DoctorProfile() {
         fees: profileUser.fees || 0,
         availableDays: profileUser.availableDays || []
       });
+      console.log(profileUser.profileImage);
+      // Set initial image preview from user data (adjust URL as needed)
+      setProfileImagePreview(profileUser.profileImage ? `http://localhost:5000${profileUser.profileImage}` : '');
+      setSelectedProfileImage(null); // Reset selected file on profile change
     }
   }, [profileUser]);
   
@@ -54,6 +62,19 @@ function DoctorProfile() {
       ...prev,
       [name]: value
     }));
+  };
+  
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedProfileImage(file);
+      // Create a preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
   
   const handleSubmit = async (e) => {
@@ -68,11 +89,34 @@ function DoctorProfile() {
       return;
     }
 
+    // Create FormData object
+    const dataToSubmit = new FormData();
+
+    // Append form fields (handle potential null/undefined values)
+    Object.keys(formData).forEach(key => {
+      // Stringify arrays before appending
+      if (Array.isArray(formData[key])) {
+        dataToSubmit.append(key, JSON.stringify(formData[key]));
+      } else if (formData[key] !== null && formData[key] !== undefined) {
+        dataToSubmit.append(key, formData[key]);
+      }
+    });
+
+    // Append the image file if selected
+    if (selectedProfileImage) {
+      dataToSubmit.append('profileImage', selectedProfileImage);
+    }
+
     try {
-      const updatedProfile = await api.updateDoctorProfile(user._id, formData, token);
+      // Pass FormData to the API call
+      const updatedProfileResponse = await api.updateDoctorProfile(user._id, dataToSubmit, token);
       
-      if (updatedProfile && updatedProfile.data) {
-        contextUpdateUserProfile(updatedProfile.data);
+      // Use the actual response data which should contain the updated user profile
+      if (updatedProfileResponse) { 
+        contextUpdateUserProfile(updatedProfileResponse); // Update context with the response data
+        // Update local preview state *after* successful update
+        setProfileImagePreview(updatedProfileResponse.profileImage ? `http://localhost:5000${updatedProfileResponse.profileImage}` : '');
+        setSelectedProfileImage(null); // Clear selected file after upload
         toast({
           title: "Success",
           description: "Your profile has been successfully updated."
@@ -110,23 +154,35 @@ function DoctorProfile() {
             <form onSubmit={handleSubmit} className="p-6">
               <div className="flex flex-col md:flex-row gap-6 mb-6">
                 <div className="w-full md:w-1/3 flex flex-col items-center">
-                  <div className="w-32 h-32 rounded-full bg-blue-100 flex items-center justify-center mb-4">
-                    {profileUser?.image ? (
+                  <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center mb-4 overflow-hidden border-2 border-gray-300">
+                    {profileImagePreview ? (
                       <img 
-                        src={profileUser.image} 
-                        alt={profileUser.name} 
-                        className="w-full h-full object-cover rounded-full"
+                        src={profileImagePreview} 
+                        alt={formData.name} 
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-4xl font-bold text-blue-600">
-                        {formData.name.charAt(0)}
-                      </span>
+                      <User className="w-16 h-16 text-gray-500" /> // Default icon
                     )}
                   </div>
                   {isOwnProfile && (
-                    <button type="button" className="text-sm text-blue-600 hover:underline">
-                      Change Profile Picture
-                    </button>
+                    <>
+                      <input 
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageChange}
+                        accept="image/png, image/jpeg, image/gif"
+                        className="hidden" // Hide the default input
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => fileInputRef.current?.click()} // Trigger file input click
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <Upload className="-ml-0.5 mr-2 h-4 w-4" aria-hidden="true" />
+                        Change Picture
+                      </button>
+                    </>
                   )}
                 </div>
                 
