@@ -15,8 +15,6 @@ import DoctorList from './pages/DoctorList.jsx';
 import AppointmentBooking from './pages/AppointmentBooking.jsx';
 import PatientProfile from './pages/PatientProfile.jsx';
 import AppointmentManagement from './pages/AppointmentManagement.jsx';
-import PrescriptionManagement from './pages/PrescriptionManagement.jsx';
-import Prescriptions from './pages/Prescriptions.jsx';
 
 import NotFound from './pages/NotFound.jsx';
 import Navbar from './components/Navbar.jsx';
@@ -86,23 +84,7 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/prescriptions"
-                  element={
-                    <ProtectedRoute userType="patient">
-                      <Prescriptions />
-                    </ProtectedRoute>
-                  }
-                />
                 
-                <Route
-                  path="/prescription-management"
-                  element={
-                    <ProtectedRoute>
-                      <PrescriptionManagement />
-                    </ProtectedRoute>
-                  }
-                />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
