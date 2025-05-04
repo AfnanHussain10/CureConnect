@@ -236,29 +236,6 @@ function AdminDashboard() {
                 </button>
               </div>
             </nav>
-
-            <div className="bg-white shadow rounded-lg overflow-hidden mt-6">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-800">Quick Actions</h2>
-              </div>
-              <div className="p-4">
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setActiveTab('doctors')}
-                    className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded flex items-center"
-                  >
-                    <Shield className="mr-2 h-4 w-4" />
-                    Approve Doctor Registrations ({stats.pendingDoctorApprovals})
-                  </button>
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded flex items-center"
-                  >
-                    <Users className="mr-2 h-4 w-4" />
-                    View New Patients (12)
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Main Content Area */}

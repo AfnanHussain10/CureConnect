@@ -297,7 +297,7 @@ export const updateAppointment = async (req, res) => {
   }
 };
 
-// Cancel appointment
+// Delete appointment
 export const deleteAppointment = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id);
@@ -313,30 +313,22 @@ export const deleteAppointment = async (req, res) => {
     if (req.user.role === 'patient' && appointment.patientId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to cancel this appointment'
+        message: 'Not authorized to delete this appointment'
       });
     }
 
-    // Update status to cancelled instead of deleting
-    appointment.status = 'cancelled';
-    await appointment.save();
-
-    // Send cancellation email
-    const message = `Your appointment scheduled for ${appointment.date} at ${appointment.time} has been cancelled.`;
-    await sendEmail({
-      email: req.user.email,
-      subject: 'Appointment Cancelled',
-      message
-    });
+    // Actually delete the appointment from the database
+    await Appointment.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
       success: true,
-      message: 'Appointment cancelled successfully'
+      message: 'Appointment deleted successfully'
     });
   } catch (error) {
+    console.error('Error deleting appointment:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Internal server error'
     });
   }
 };

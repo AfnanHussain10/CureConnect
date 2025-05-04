@@ -11,7 +11,8 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
   // Specialization data for carousel
   const specializations = [
     {
@@ -284,7 +285,8 @@ function Home() {
                       {doctor.isAvailable ? 'Available' : 'Unavailable'}
                     </span>
                     <Link 
-                      to={`/doctor/${doctor._id}`} 
+                      to="#" 
+                      onClick={e => { e.preventDefault(); setSelectedDoctor(doctor); setModalOpen(true); }}
                       className="mt-4 block w-full text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
                     >
                       View Profile
@@ -298,6 +300,55 @@ function Home() {
           )}
         </div>
       </section>
+      {/* Doctor Modal */}
+      {modalOpen && selectedDoctor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative animate-fade-in">
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+              onClick={() => setModalOpen(false)}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <div className="flex flex-col items-center">
+              <img
+                src={selectedDoctor.profileImage ? `http://localhost:5000${selectedDoctor.profileImage}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedDoctor.name)}&background=random`}
+                alt={selectedDoctor.name}
+                className="w-28 h-28 rounded-full object-cover mb-4 border-2 border-blue-500"
+              />
+              <h2 className="text-2xl font-bold mb-1">{selectedDoctor.name}</h2>
+              <p className="text-blue-600 mb-2">{selectedDoctor.specialization}</p>
+              <p className="text-gray-600 mb-2">{selectedDoctor.education || 'Education info not available'}</p>
+              <p className="text-gray-700 mb-2"><span className="font-semibold">Address:</span> {selectedDoctor.location || 'Not provided'}</p>
+              <div className="mb-2 w-full">
+                <span className="font-semibold">Available Days:</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(selectedDoctor.availableDays && selectedDoctor.availableDays.length > 0) ? (
+                    selectedDoctor.availableDays.map((day, idx) => (
+                      <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{day}</span>
+                    ))
+                  ) : (
+                    <span className="text-gray-500 text-xs">Not specified</span>
+                  )}
+                </div>
+              </div>
+              <div className="mb-2 w-full">
+                <span className="font-semibold">Available Slots:</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(selectedDoctor.availableTimeSlots && selectedDoctor.availableTimeSlots.length > 0) ? (
+                    selectedDoctor.availableTimeSlots.map((slot, idx) => (
+                      <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">{slot}</span>
+                    ))
+                  ) : (
+                    <span className="text-gray-500 text-xs">Not specified</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Testimonials Section */}
       <section className="py-16 bg-gray-50">

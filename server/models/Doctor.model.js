@@ -49,20 +49,7 @@ const DoctorSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'active', 'rejected', 'suspended'],
     default: 'pending'
-  },
-  reviews: [{
-    patientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Patient'
-    },
-    patientName: String,
-    rating: Number,
-    comment: String,
-    date: {
-      type: Date,
-      default: Date.now
-    }
-  }]
+  }
 });
 
 // Add geospatial index for location-based queries

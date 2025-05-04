@@ -5,6 +5,7 @@ import path from 'path';
 // Import sendEmail utility at the top of the file
 import sendEmail from '../utils/sendEmail.js';
 import mongoose from 'mongoose';
+import Review from '../models/Review.model.js';
 
 // Configure multer for profile image uploads
 const storage = multer.diskStorage({
@@ -50,8 +51,31 @@ export const getDoctors = async (req, res) => {
     if (location) filter.location = location;
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
 
+
     const doctors = await Doctor.find(filter).select('-password');
-    res.status(200).json(doctors);
+    // Fetch ratings for each doctor from approved reviews
+    const doctorIds = doctors.map(doc => doc._id);
+    const reviews = await Review.aggregate([
+      { $match: { doctorId: { $in: doctorIds }, status: 'approved' } },
+      { $group: {
+        _id: "$doctorId",
+        avgRating: { $avg: "$rating" },
+        reviewCount: { $sum: 1 }
+      }}
+    ]);
+    const reviewMap = {};
+    reviews.forEach(r => {
+      reviewMap[r._id.toString()] = { avgRating: r.avgRating, reviewCount: r.reviewCount };
+    });
+    const doctorsWithRatings = doctors.map(doc => {
+      const stats = reviewMap[doc._id.toString()] || { avgRating: 0, reviewCount: 0 };
+      return {
+        ...doc.toObject(),
+        rating: stats.avgRating,
+        reviewCount: stats.reviewCount
+      };
+    });
+    res.status(200).json(doctorsWithRatings);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
