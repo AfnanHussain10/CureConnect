@@ -61,26 +61,7 @@ export const AuthProvider = ({ children }) => {
     loadDoctors();
   }, []);
 
-  // Load appointments when user changes
-  useEffect(() => {
-    const loadAppointments = async () => {
-      if (user && token) {
-        try {
-          const appointmentsData = await api.getAppointments(token, user._id, user.role);
-          setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
-        } catch (error) {
-          console.error('Failed to load appointments:', error);
-          setAppointments([]);
-          toast({
-            title: "Error",
-            description: "Failed to load appointments",
-            variant: "destructive",
-          });
-        }
-      }
-    };
-    loadAppointments();
-  }, [user, token]);
+  // Remove the loadAppointments effect since it's handled in the dashboard components
 
   const login = async (email, password, userType) => {
     try {
@@ -184,18 +165,30 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData, userType) => {
     try {
-      const { token: newToken, user: newUser } = await api.registerUser(userData, userType);
-      
+      // Call the API to register the user
+      const response = await api.registerUser(userData, userType);
+
+      // For doctors, registration requires admin approval, so don't log them in automatically.
+      if (userType === 'doctor') {
+        toast({
+          title: "Registration Submitted",
+          description: "Your registration is submitted and pending admin approval.",
+        });
+        return { success: true, requiresApproval: true }; // Indicate success but requires approval
+      }
+
+      // For other user types (e.g., patient), log them in directly.
+      const { token: newToken, user: newUser } = response; 
       setToken(newToken);
       localStorage.setItem('token', newToken);
       setUser(newUser);
-      
+
       toast({
         title: "Registration Successful",
         description: "Your account has been created successfully",
       });
-      
-      return true;
+
+      return { success: true, requiresApproval: false }; // Indicate success and immediate login
     } catch (error) {
       toast({
         title: "Registration Failed",

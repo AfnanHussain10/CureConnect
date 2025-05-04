@@ -13,8 +13,8 @@ function PatientSignup() {
     gender: '',
     phoneNumber: '',
     address: '',
-    profileImage: null, // Stores the File object temporarily
-    profileImageBase64: '', // Stores the Base64 string
+    profileImage: null, // Stores the File object
+    // profileImageBase64: '', // Remove Base64 state
     medicalHistory: ''
   });
   
@@ -30,29 +30,28 @@ function PatientSignup() {
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (!file.type.match(/image\/(jpeg|png)/)) {
-        setErrors({ profileImage: 'Only JPEG and PNG images are allowed' });
+      if (!file.type.match(/image\/(jpeg|png|gif)/)) { // Allow gif as well
+        setErrors({ profileImage: 'Only JPEG, PNG, or GIF images are allowed' });
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
         setErrors({ profileImage: 'Image size must be less than 5MB' });
         return;
       }
 
-      // Convert image to Base64
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData({ 
-          ...formData, 
-          profileImage: file, // Keep File for preview
-          profileImageBase64: reader.result // Base64 string
-        });
-        setErrors({ ...errors, profileImage: null });
-      };
-      reader.onerror = () => {
-        setErrors({ profileImage: 'Failed to read image file' });
-      };
-      reader.readAsDataURL(file);
+      // Store the File object directly
+      setFormData({ 
+        ...formData, 
+        profileImage: file // Store the File object
+      });
+      setErrors({ ...errors, profileImage: null });
+
+      // Optional: Create a preview URL if needed for UI
+      // const reader = new FileReader();
+      // reader.onload = () => {
+      //   // setProfileImagePreview(reader.result); // Example state for preview
+      // };
+      // reader.readAsDataURL(file);
     }
   };
   
@@ -113,26 +112,33 @@ function PatientSignup() {
     // Only proceed with submission if on Step 3
     if (step !== 3) return;
     
+    // Re-validate steps just in case
     if (!validateStep1() || !validateStep2()) {
-      setStep(1);
+      // Optionally set step back or show a general error
+      setErrors({ submit: 'Please complete all required fields correctly.' });
+      setStep(1); // Go back to the first step with errors
       return;
     }
     
-    // Prepare JSON payload
-    const userData = {
-      name: formData.fullName,
-      email: formData.email,
-      password: formData.password,
-      dateOfBirth: formData.dateOfBirth,
-      gender: formData.gender,
-      phoneNumber: formData.phoneNumber,
-      address: formData.address,
-      medicalHistory: formData.medicalHistory || '',
-      profileImage: formData.profileImageBase64 || '' // Base64 string or empty
-    };
+    // Prepare FormData payload
+    const dataToSubmit = new FormData();
+    dataToSubmit.append('name', formData.fullName);
+    dataToSubmit.append('email', formData.email);
+    dataToSubmit.append('password', formData.password);
+    dataToSubmit.append('dateOfBirth', formData.dateOfBirth);
+    dataToSubmit.append('gender', formData.gender);
+    dataToSubmit.append('phoneNumber', formData.phoneNumber);
+    dataToSubmit.append('address', formData.address);
+    dataToSubmit.append('medicalHistory', formData.medicalHistory || '');
+    
+    // Append the profile image file if it exists
+    if (formData.profileImage) {
+      dataToSubmit.append('profileImage', formData.profileImage);
+    }
     
     try {
-      const response = await registerUser(userData, 'patient');
+      // Pass FormData to registerUser
+      const response = await registerUser(dataToSubmit, 'patient'); 
       console.log('Registration successful:', response);
       navigate('/login', { 
         state: { 
@@ -142,7 +148,7 @@ function PatientSignup() {
       });
     } catch (error) {
       console.error('Registration failed:', error.message);
-      setErrors({ submit: error.message });
+      setErrors({ submit: error.message || 'Registration failed. Please try again.' });
     }
   };
   

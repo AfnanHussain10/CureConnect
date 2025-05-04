@@ -98,18 +98,14 @@ function DoctorManagement({ token }) {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      console.log('Sending editFormData:', editFormData);
-      const updatedDoctorResponse = await api.updateDoctorProfile(selectedDoctor._id, editFormData, token);
-      const updatedDoctor = updatedDoctorResponse.data;
-      console.log('Received updatedDoctor:', updatedDoctor);
+      const updatedDoctor = await api.updateDoctorProfile(selectedDoctor._id, editFormData, token);
 
       setDoctors(prev => {
-        const newDoctors = prev.map(d => (d._id === selectedDoctor._id ? { ...d, ...updatedDoctor } : d));
-        console.log('Updated doctors state:', newDoctors);
+        const newDoctors = prev.map(d => (d._id === selectedDoctor._id ? { ...d, ...editFormData } : d));
         return newDoctors;
       });
       setPendingDoctors(prev =>
-        prev.map(d => (d._id === selectedDoctor._id ? { ...d, ...updatedDoctor } : d))
+        prev.map(d => (d._id === selectedDoctor._id ? { ...d, ...editFormData } : d))
       );
       setEditModalOpen(false);
       toast({ title: "Success", description: "Doctor profile updated successfully.", variant: "success" });
@@ -159,7 +155,6 @@ function DoctorManagement({ token }) {
   };
 
   const handleUpdateStatus = (doctor) => {
-    console.log('Opening status modal for doctor:', doctor._id);
     setSelectedDoctor(doctor);
     setStatusFormData({
       status: doctor.status
@@ -171,18 +166,33 @@ function DoctorManagement({ token }) {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      console.log('Submitting status update:', statusFormData.status);
       await api.updateDoctorStatus(selectedDoctor._id, statusFormData.status, token);
-      setDoctors(prev => {
-        const newDoctors = prev.map(d => (d._id === selectedDoctor._id ? { ...d, status: statusFormData.status } : d));
-        console.log('Updated doctors state:', newDoctors);
-        return newDoctors;
-      });
-      setPendingDoctors(prev =>
-        prev.filter(d => d._id !== selectedDoctor._id || statusFormData.status !== 'pending')
-      );
+      
+      // Immediately update the UI
+      const updatedDoctor = { ...selectedDoctor, status: statusFormData.status };
+      
+      setDoctors(prev => prev.map(d => 
+        d._id === selectedDoctor._id ? updatedDoctor : d
+      ));
+      
+      // Update pending doctors list
+      if (statusFormData.status === 'pending') {
+        setPendingDoctors(prev => 
+          prev.some(d => d._id === selectedDoctor._id) ? prev : [...prev, updatedDoctor]
+        );
+      } else {
+        setPendingDoctors(prev => prev.filter(d => d._id !== selectedDoctor._id));
+      }
+      
       setStatusModalOpen(false);
-      toast({ title: "Success", description: "Doctor status updated successfully.", variant: "success" });
+      setSelectedDoctor(null);
+      setStatusFormData({ status: '' });
+      
+      toast({ 
+        title: "Success", 
+        description: "Doctor status updated successfully.", 
+        variant: "success" 
+      });
     } catch (error) {
       console.error('Status update error:', error);
       toast({ 

@@ -19,7 +19,7 @@ function DoctorSignup() {
     fees: '',
     availableDays: [],
     availableTimeSlots: [],
-    profileImage: null
+    profileImage: null // Stores the File object
   });
   
   const [errors, setErrors] = useState({});
@@ -27,10 +27,10 @@ function DoctorSignup() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register } = useAuth(); // Assuming register handles FormData
   
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const timeSlots = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
+  const timeSlots = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM', '6:00 PM'];
   
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,27 +39,36 @@ function DoctorSignup() {
   
   const handleImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      // Basic validation (optional but recommended)
+      if (!file.type.match(/image\/(jpeg|png|gif)/)) {
+        setErrors({ ...errors, profileImage: 'Only JPEG, PNG, or GIF images are allowed' });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        setErrors({ ...errors, profileImage: 'Image size must be less than 5MB' });
+        return;
+      }
+
       setFormData({
         ...formData,
-        profileImage: e.target.files[0]
+        profileImage: file // Store the File object
       });
+      setErrors({ ...errors, profileImage: null }); // Clear any previous image error
     }
   };
   
-  const handleCheckboxChange = (e, array) => {
+  const handleCheckboxChange = (e) => {
     const { name, value, checked } = e.target;
     
-    if (checked) {
-      setFormData({
-        ...formData,
-        [name]: [...formData[name], value]
-      });
-    } else {
-      setFormData({
-        ...formData,
-        [name]: formData[name].filter(item => item !== value)
-      });
-    }
+    setFormData(prevState => {
+      const currentValues = prevState[name] || [];
+      if (checked) {
+        return { ...prevState, [name]: [...currentValues, value] };
+      } else {
+        return { ...prevState, [name]: currentValues.filter(item => item !== value) };
+      }
+    });
   };
   
   const validateStep1 = () => {
@@ -123,44 +132,71 @@ function DoctorSignup() {
     if (!validateStep3()) return;
     
     setIsSubmitting(true);
+    setErrors({}); // Clear previous errors
+
+    // Prepare FormData payload
+    const dataToSubmit = new FormData();
+    dataToSubmit.append('name', formData.name);
+    dataToSubmit.append('email', formData.email);
+    dataToSubmit.append('password', formData.password);
+    dataToSubmit.append('specialization', formData.specialization);
+    dataToSubmit.append('location', formData.location);
+    dataToSubmit.append('bio', formData.bio || '');
+    dataToSubmit.append('experience', formData.experience || '');
+    dataToSubmit.append('education', formData.education || '');
+    dataToSubmit.append('fees', formData.fees || '');
+    
+    // Append array items individually if backend expects them that way
+    formData.availableDays.forEach(day => dataToSubmit.append('availableDays', day));
+    formData.availableTimeSlots.forEach(slot => dataToSubmit.append('availableTimeSlots', slot));
+
+    // Append the profile image file if it exists
+    if (formData.profileImage) {
+      dataToSubmit.append('profileImage', formData.profileImage);
+    }
     
     try {
-      // Convert profile image to URL (in a real app, you'd upload to a server)
-      let imageUrl = null;
-      if (formData.profileImage) {
-        imageUrl = URL.createObjectURL(formData.profileImage);
-      }
-      
-      // Register the doctor
-      const success = await register({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        specialization: formData.specialization,
-        location: formData.location,
-        bio: formData.bio,
-        experience: formData.experience,
-        education: formData.education,
-        fees: formData.fees,
-        availableDays: formData.availableDays,
-        availableTimeSlots: formData.availableTimeSlots,
-        image: imageUrl || "https://randomuser.me/api/portraits/men/32.jpg", // Default image if none provided
-        rating: 0,
-        reviews: [],
-        available: true
-      }, 'doctor');
-      
-      if (success) {
-        toast({
-          title: "Registration Successful",
-          description: "Your doctor account has been created. You can now access your dashboard.",
-        });
-        navigate('/doctor-dashboard');
+      // Pass FormData to the register function from AuthContext
+      const result = await register(dataToSubmit, 'doctor');
+
+      if (result.success) {
+        if (result.requiresApproval) {
+          // Doctor registration requires approval
+          toast({
+            title: "Registration Submitted",
+            description: "Your registration is submitted and pending admin approval.",
+          });
+          navigate('/login', { 
+            state: { 
+              message: 'Registration submitted. Please wait for admin approval before logging in.', 
+              userType: 'doctor' 
+            } 
+          });
+        } else {
+          // This case shouldn't happen for doctors based on AuthContext logic,
+          // but handle it just in case (e.g., redirect to dashboard if auto-login was intended for other roles)
+          toast({
+            title: "Registration Successful",
+            description: "Your account has been created successfully.",
+          });
+          // Potentially navigate('/doctor-dashboard') if auto-login was desired here
+          // For now, redirecting to login is safer if this path is unexpected.
+          navigate('/login', { state: { message: 'Registration successful. Please log in.', userType: 'doctor' } });
+        }
+      } else {
+        // Handle registration failure (e.g., API error handled within register function)
+        // Error toast is likely already shown by the register function
+        // We might not need to throw another error here unless register doesn't handle toasts
+        // setErrors({ submit: 'Registration failed. Please check your details.' }); // Keep if needed
       }
     } catch (error) {
+      console.error('Registration failed:', error);
+      // Display specific error from backend if available, otherwise generic message
+      const errorMessage = error.response?.data?.message || error.message || "An error occurred during registration";
+      setErrors({ submit: errorMessage }); // Show error message near the submit button or globally
       toast({
         title: "Registration Failed",
-        description: error.message || "An error occurred during registration",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -176,6 +212,13 @@ function DoctorSignup() {
             <h2 className="text-3xl font-bold text-gray-900">Doctor Registration</h2>
             <p className="mt-2 text-gray-600">Join our healthcare platform as a healthcare provider</p>
           </div>
+
+          {/* Display general submission error */}
+          {errors.submit && (
+            <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-400">
+              <p className="text-sm text-red-700">{errors.submit}</p>
+            </div>
+          )}
           
           <div className="mb-8">
             <div className="flex items-center justify-between">
@@ -210,7 +253,8 @@ function DoctorSignup() {
                       value={formData.name}
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="Dr. John Doe"
+                      placeholder="Dr. Jane Smith"
+                      required
                     />
                   </div>
                   {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name}</p>}
@@ -229,7 +273,8 @@ function DoctorSignup() {
                       value={formData.email}
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
-                      placeholder="john.doe@example.com"
+                      placeholder="you@example.com"
+                      required
                     />
                   </div>
                   {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email}</p>}
@@ -249,6 +294,7 @@ function DoctorSignup() {
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.password ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
                       placeholder="••••••••"
+                      required
                     />
                   </div>
                   {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password}</p>}
@@ -268,9 +314,20 @@ function DoctorSignup() {
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
                       placeholder="••••••••"
+                      required
                     />
                   </div>
                   {errors.confirmPassword && <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>}
+                </div>
+                
+                <div className="flex justify-end">
+                  <button 
+                    type="button" 
+                    onClick={nextStep}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Next: Professional Details
+                  </button>
                 </div>
               </div>
             )}
@@ -283,149 +340,111 @@ function DoctorSignup() {
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Briefcase className="h-5 w-5 text-gray-400" />
                     </div>
-                    <select
+                    <input
+                      type="text"
                       id="specialization"
                       name="specialization"
                       value={formData.specialization}
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.specialization ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
-                    >
-                      <option value="">Select Specialization</option>
-                      <option value="Cardiologist">Cardiologist</option>
-                      <option value="Dermatologist">Dermatologist</option>
-                      <option value="Neurologist">Neurologist</option>
-                      <option value="Pediatrician">Pediatrician</option>
-                      <option value="Orthopedist">Orthopedist</option>
-                      <option value="Gynecologist">Gynecologist</option>
-                      <option value="Psychiatrist">Psychiatrist</option>
-                      <option value="Urologist">Urologist</option>
-                      <option value="Ophthalmologist">Ophthalmologist</option>
-                      <option value="General Physician">General Physician</option>
-                    </select>
+                      placeholder="e.g., Cardiology, Pediatrics"
+                      required
+                    />
                   </div>
                   {errors.specialization && <p className="mt-2 text-sm text-red-600">{errors.specialization}</p>}
                 </div>
                 
                 <div>
-                  <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location</label>
+                  <label htmlFor="location" className="block text-sm font-medium text-gray-700">Practice Location</label>
                   <div className="mt-1 relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <MapPin className="h-5 w-5 text-gray-400" />
                     </div>
-                    <select
+                    <input
+                      type="text"
                       id="location"
                       name="location"
                       value={formData.location}
                       onChange={handleChange}
                       className={`block w-full pl-10 pr-3 py-2 border ${errors.location ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500`}
-                    >
-                      <option value="">Select Location</option>
-                      <option value="New York">New York</option>
-                      <option value="Los Angeles">Los Angeles</option>
-                      <option value="Chicago">Chicago</option>
-                      <option value="Houston">Houston</option>
-                      <option value="Miami">Miami</option>
-                      <option value="Boston">Boston</option>
-                      <option value="San Francisco">San Francisco</option>
-                      <option value="Seattle">Seattle</option>
-                      <option value="Denver">Denver</option>
-                      <option value="Atlanta">Atlanta</option>
-                    </select>
+                      placeholder="City, State"
+                      required
+                    />
                   </div>
                   {errors.location && <p className="mt-2 text-sm text-red-600">{errors.location}</p>}
                 </div>
-                
+
+                <div>
+                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700">Professional Bio (Optional)</label>
+                  <textarea
+                    id="bio"
+                    name="bio"
+                    rows="3"
+                    value={formData.bio}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Brief description of your expertise and background"
+                  ></textarea>
+                </div>
+
                 <div>
                   <label htmlFor="experience" className="block text-sm font-medium text-gray-700">Years of Experience</label>
-                  <div className="mt-1">
-                    <input
-                      type="number"
-                      id="experience"
-                      name="experience"
-                      value={formData.experience}
-                      onChange={handleChange}
-                      min="0"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g. 10"
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    id="experience"
+                    name="experience"
+                    value={formData.experience}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., 10"
+                    required
+                  />
+                  {errors.experience && <p className="mt-2 text-sm text-red-600">{errors.experience}</p>}
                 </div>
-                
+
                 <div>
                   <label htmlFor="education" className="block text-sm font-medium text-gray-700">Education & Qualifications</label>
-                  <div className="mt-1">
-                    <textarea
-                      id="education"
-                      name="education"
-                      rows="3"
-                      value={formData.education}
-                      onChange={handleChange}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="MD from Harvard Medical School, Board Certified in Cardiology"
-                    ></textarea>
-                  </div>
+                  <textarea
+                    id="education"
+                    name="education"
+                    rows="3"
+                    value={formData.education}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., MD from University X, Board Certified in Y"
+                    required
+                  ></textarea>
+                </div>
+
+                <div>
+                  <label htmlFor="fees" className="block text-sm font-medium text-gray-700">Consultation Fees</label>
+                  <input
+                    type="number"
+                    id="fees"
+                    name="fees"
+                    value={formData.fees}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., 150"
+                    required
+                  />
                 </div>
                 
-                <div>
-                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700">Professional Bio</label>
-                  <div className="mt-1">
-                    <textarea
-                      id="bio"
-                      name="bio"
-                      rows="4"
-                      value={formData.bio}
-                      onChange={handleChange}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Tell patients about your professional experience and approach to healthcare..."
-                    ></textarea>
-                  </div>
-                </div>
-                
-                <div>
-                  <label htmlFor="fees" className="block text-sm font-medium text-gray-700">Consultation Fees ($)</label>
-                  <div className="mt-1">
-                    <input
-                      type="number"
-                      id="fees"
-                      name="fees"
-                      value={formData.fees}
-                      onChange={handleChange}
-                      min="0"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g. 100"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Profile Picture (Optional)</label>
-                  <div className="mt-1 flex items-center">
-                    <span className="inline-block h-12 w-12 rounded-full overflow-hidden bg-gray-100">
-                      {formData.profileImage ? (
-                        <img
-                          src={URL.createObjectURL(formData.profileImage)}
-                          alt="Profile preview"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <svg className="h-full w-full text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                      )}
-                    </span>
-                    <label htmlFor="profile-image" className="ml-5 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer">
-                      <Upload className="h-4 w-4 inline-block mr-1" />
-                      Upload
-                    </label>
-                    <input
-                      id="profile-image"
-                      name="profileImage"
-                      type="file"
-                      className="sr-only"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                    />
-                  </div>
+                <div className="flex justify-between">
+                  <button 
+                    type="button" 
+                    onClick={prevStep}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Previous: Account Details
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={nextStep}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Next: Availability
+                  </button>
                 </div>
               </div>
             )}
@@ -433,8 +452,8 @@ function DoctorSignup() {
             {step === 3 && (
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Available Days</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <label className="block text-sm font-medium text-gray-700">Available Days</label>
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {days.map(day => (
                       <div key={day} className="flex items-center">
                         <input
@@ -443,10 +462,10 @@ function DoctorSignup() {
                           type="checkbox"
                           value={day}
                           checked={formData.availableDays.includes(day)}
-                          onChange={(e) => handleCheckboxChange(e, 'availableDays')}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          onChange={handleCheckboxChange}
+                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
-                        <label htmlFor={`day-${day}`} className="ml-2 block text-sm text-gray-700">
+                        <label htmlFor={`day-${day}`} className="ml-2 block text-sm text-gray-900">
                           {day}
                         </label>
                       </div>
@@ -456,99 +475,83 @@ function DoctorSignup() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Available Time Slots</label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {timeSlots.map(time => (
-                      <div key={time} className="flex items-center">
+                  <label className="block text-sm font-medium text-gray-700">Available Time Slots</label>
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {timeSlots.map(slot => (
+                      <div key={slot} className="flex items-center">
                         <input
-                          id={`time-${time}`}
+                          id={`slot-${slot.replace(/\s|:/g, '-')}`}
                           name="availableTimeSlots"
                           type="checkbox"
-                          value={time}
-                          checked={formData.availableTimeSlots.includes(time)}
-                          onChange={(e) => handleCheckboxChange(e, 'availableTimeSlots')}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          value={slot}
+                          checked={formData.availableTimeSlots.includes(slot)}
+                          onChange={handleCheckboxChange}
+                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
-                        <label htmlFor={`time-${time}`} className="ml-2 block text-sm text-gray-700">
-                          {time}
+                        <label htmlFor={`slot-${slot.replace(/\s|:/g, '-')}`} className="ml-2 block text-sm text-gray-900">
+                          {slot}
                         </label>
                       </div>
                     ))}
                   </div>
                   {errors.availableTimeSlots && <p className="mt-2 text-sm text-red-600">{errors.availableTimeSlots}</p>}
                 </div>
-                
-                <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Review Your Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p><span className="font-medium">Name:</span> {formData.name}</p>
-                      <p><span className="font-medium">Email:</span> {formData.email}</p>
-                      <p><span className="font-medium">Specialization:</span> {formData.specialization}</p>
-                      <p><span className="font-medium">Location:</span> {formData.location}</p>
-                    </div>
-                    <div>
-                      <p><span className="font-medium">Experience:</span> {formData.experience} years</p>
-                      <p><span className="font-medium">Consultation Fee:</span> ${formData.fees}</p>
-                      <p><span className="font-medium">Available Days:</span> {formData.availableDays.join(', ')}</p>
-                      <p><span className="font-medium">Available Times:</span> {formData.availableTimeSlots.join(', ')}</p>
-                    </div>
+
+                <div>
+                  <label htmlFor="profileImage" className="block text-sm font-medium text-gray-700">Profile Picture (Optional)</label>
+                  <div className="mt-1 flex items-center">
+                    <span className="inline-block h-12 w-12 rounded-full overflow-hidden bg-gray-100">
+                      {/* Basic preview - replace with better one if needed */} 
+                      {formData.profileImage ? (
+                        <img className="h-full w-full object-cover" src={URL.createObjectURL(formData.profileImage)} alt="Profile Preview" />
+                      ) : (
+                        <svg className="h-full w-full text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                      )}
+                    </span>
+                    <label htmlFor="profileImage" className="ml-5 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer">
+                      <Upload className="h-5 w-5 inline-block mr-1" /> Change
+                      <input 
+                        id="profileImage" 
+                        name="profileImage" 
+                        type="file" 
+                        className="sr-only" 
+                        onChange={handleImageChange} 
+                        accept="image/png, image/jpeg, image/gif"
+                      />
+                    </label>
                   </div>
+                  {errors.profileImage && <p className="mt-2 text-sm text-red-600">{errors.profileImage}</p>}
                 </div>
                 
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-sm text-yellow-700">
-                        By clicking "Complete Registration", you agree to our Terms of Service and Privacy Policy. You'll be able to receive appointment requests and manage patients.
-                      </p>
-                    </div>
-                  </div>
+                <div className="flex justify-between items-center pt-6">
+                  <button 
+                    type="button" 
+                    onClick={prevStep}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Previous: Professional Details
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={`inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white ${isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Register Account'}
+                  </button>
                 </div>
               </div>
             )}
-            
-            <div className="mt-8 flex justify-between">
-              {step > 1 && (
-                <button
-                  type="button"
-                  onClick={prevStep}
-                  className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Back
-                </button>
-              )}
-              
-              {step < 3 ? (
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  className="ml-auto bg-blue-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Next
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`ml-auto bg-blue-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                >
-                  {isSubmitting ? 'Submitting...' : 'Complete Registration'}
-                </button>
-              )}
-            </div>
           </form>
           
-          <div className="mt-6 text-center text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              Login here
-            </Link>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                Login here
+              </Link>
+            </p>
           </div>
         </div>
       </div>

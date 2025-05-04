@@ -13,7 +13,8 @@ import patientRoutes from './routes/patient.routes.js';
 import appointmentRoutes from './routes/appointment.routes.js';
 import prescriptionRoutes from './routes/prescription.routes.js';
 import reportRoutes from './routes/report.routes.js';
-import reviewRoutes from './routes/review.routes.js'
+import reviewRoutes from './routes/review.routes.js';
+import contactRoutes from './routes/contactRoutes.js'; // Import contact routes
 // Load environment variables
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/contact', contactRoutes); // Use contact routes
 
 // Serve static files
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

@@ -1,37 +1,74 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { UserPlus, Search, Calendar, Star, ChevronDown, User, Shield } from 'lucide-react';
+import { Search, Filter, Star, MapPin, Clock, UserPlus, Calendar, User, ChevronDown, Send, Heart, Brain, Bone, Baby, Droplet } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import * as api from '../services/api';
+import { toast } from '../components/ui/use-toast';
+import { getAllDoctors } from '../services/api';
 
 function Home() {
-  const featuredDoctors = [
+  const [featuredDoctors, setFeaturedDoctors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Specialization data for carousel
+  const specializations = [
     {
-      id: 1,
-      name: "Dr. Sarah Johnson",
-      specialization: "Cardiologist",
-      location: "New York",
-      rating: 4.9,
-      image: "https://randomuser.me/api/portraits/women/45.jpg",
-      available: true
+      name: 'Cardiology',
+      icon: <Heart className="w-8 h-8 text-red-500" />,
+      description: 'Heart and vascular care experts.',
+      link: '/doctor-list?specialization=cardiology',
     },
     {
-      id: 2,
-      name: "Dr. Michael Chen",
-      specialization: "Dermatologist",
-      location: "Los Angeles",
-      rating: 4.8,
-      image: "https://randomuser.me/api/portraits/men/32.jpg",
-      available: true
+      name: 'Neurology',
+      icon: <Brain className="w-8 h-8 text-blue-500" />,
+      description: 'Specialists in brain and nerve disorders.',
+      link: '/doctor-list?specialization=neurology',
     },
     {
-      id: 3,
-      name: "Dr. Emily Rodriguez",
-      specialization: "Pediatrician",
-      location: "Chicago",
-      rating: 4.7,
-      image: "https://randomuser.me/api/portraits/women/68.jpg",
-      available: false
-    }
+      name: 'Orthopedics',
+      icon: <Bone className="w-8 h-8 text-gray-500" />,
+      description: 'Bone and joint care professionals.',
+      link: '/doctor-list?specialization=orthopedics',
+    },
+    {
+      name: 'Pediatrics',
+      icon: <Baby className="w-8 h-8 text-pink-500" />,
+      description: 'Care for children and adolescents.',
+      link: '/doctor-list?specialization=pediatrics',
+    },
+    {
+      name: 'Dermatology',
+      icon: <Droplet className="w-8 h-8 text-amber-500" />,
+      description: 'Skin, hair, and nail specialists.',
+      link: '/doctor-list?specialization=dermatology',
+    },
   ];
+
+  function handleContactChange(e) {
+    const { name, value } = e.target;
+    setContactForm(prev => ({ ...prev, [name]: value }));
+  }
+  
+  async function handleContactSubmit(e) {
+    e.preventDefault();
+    if (!contactForm.name || !contactForm.email || !contactForm.message) {
+      toast({ title: "Error", description: "Please fill in all fields.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await api.sendContactEmail(contactForm);
+      toast({ title: "Success", description: "Your message has been sent successfully!" });
+      setContactForm({ name: '', email: '', message: '' });
+    } catch (error) {
+      console.error('Failed to send contact message:', error);
+      toast({ title: "Error", description: error.message || "Failed to send message. Please try again.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   const testimonials = [
     {
@@ -80,6 +117,22 @@ function Home() {
     document.getElementById(`faq-${id}`).classList.toggle('hidden');
   };
 
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        setLoading(true);
+        const data = await getAllDoctors();
+        setFeaturedDoctors(data.slice(0, 3));
+      } catch (error) {
+        console.error('Failed to fetch doctors:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -88,31 +141,21 @@ function Home() {
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Find the Best Doctors for Your Health</h1>
           <p className="text-xl mb-8">Book an appointment with top-rated specialists in just a few clicks.</p>
           
-          <div className="bg-white rounded-lg p-4 shadow-lg max-w-4xl mx-auto">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <select className="w-full p-3 border border-gray-300 rounded text-gray-700">
-                  <option value="">Select Specialization</option>
-                  <option value="cardiology">Cardiology</option>
-                  <option value="dermatology">Dermatology</option>
-                  <option value="neurology">Neurology</option>
-                  <option value="pediatrics">Pediatrics</option>
-                  <option value="orthopedics">Orthopedics</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <select className="w-full p-3 border border-gray-300 rounded text-gray-700">
-                  <option value="">Select Location</option>
-                  <option value="new-york">New York</option>
-                  <option value="los-angeles">Los Angeles</option>
-                  <option value="chicago">Chicago</option>
-                  <option value="houston">Houston</option>
-                  <option value="miami">Miami</option>
-                </select>
-              </div>
-              <button className="bg-blue-600 text-white p-3 rounded hover:bg-blue-700">
-                Search Doctors
-              </button>
+          {/* Specializations Carousel */}
+          <div className="bg-white rounded-2xl p-6 shadow-xl max-w-5xl mx-auto">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Explore Specializations</h3>
+            <div className="flex overflow-x-auto space-x-4 pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+              {specializations.map((spec, index) => (
+                <Link
+                  key={index}
+                  to={spec.link}
+                  className="min-w-[200px] bg-gray-50 rounded-xl p-4 flex flex-col items-center text-center hover:bg-blue-50 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1"
+                >
+                  <div className="mb-3">{spec.icon}</div>
+                  <h4 className="text-base font-semibold text-gray-800 mb-1">{spec.name}</h4>
+                  <p className="text-sm text-gray-600">{spec.description}</p>
+                </Link>
+              ))}
             </div>
           </div>
           
@@ -134,7 +177,7 @@ function Home() {
           
           <div className="mb-16">
             <h3 className="text-2xl font-semibold text-blue-600 mb-8 text-center">For Patients</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               <div className="text-center">
                 <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="text-blue-600 w-8 h-8" />
@@ -150,15 +193,6 @@ function Home() {
                 <h4 className="text-xl font-semibold mb-2">Book</h4>
                 <p className="text-gray-600">Choose a doctor & book an available slot</p>
               </div>
-              
-              <div className="text-center">
-                <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <User className="text-blue-600 w-8 h-8" />
-                </div>
-                <h4 className="text-xl font-semibold mb-2">Consult</h4>
-                <p className="text-gray-600">Attend consultation & get a prescription</p>
-              </div>
-              
               <div className="text-center">
                 <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Star className="text-blue-600 w-8 h-8" />
@@ -171,7 +205,7 @@ function Home() {
           
           <div className="mb-10">
             <h3 className="text-2xl font-semibold text-blue-600 mb-8 text-center">For Doctors</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               <div className="text-center">
                 <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <UserPlus className="text-blue-600 w-8 h-8" />
@@ -187,15 +221,6 @@ function Home() {
                 <h4 className="text-xl font-semibold mb-2">Manage</h4>
                 <p className="text-gray-600">Manage appointments & patient interactions</p>
               </div>
-              
-              <div className="text-center">
-                <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <User className="text-blue-600 w-8 h-8" />
-                </div>
-                <h4 className="text-xl font-semibold mb-2">Consult</h4>
-                <p className="text-gray-600">Conduct consultations online or in-person</p>
-              </div>
-              
               <div className="text-center">
                 <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Star className="text-blue-600 w-8 h-8" />
@@ -214,47 +239,63 @@ function Home() {
         </div>
       </section>
 
+      {/* About Us Section */}
+      <section id="about" className="py-16 bg-white">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl font-bold text-center mb-12">About CureConnect</h2>
+          <div className="max-w-3xl mx-auto text-center text-gray-700 space-y-4">
+            <p>
+              Welcome to CureConnect, your trusted platform for connecting patients with qualified healthcare professionals. Our mission is to make healthcare accessible, convenient, and reliable for everyone.
+            </p>
+            <p>
+              We believe in leveraging technology to bridge the gap between patients and doctors, offering seamless appointment booking, secure communication, and access to comprehensive medical information.
+            </p>
+            <p>
+              Our team is dedicated to ensuring a high standard of care and a positive experience for both patients and doctors on our platform. Join us in revolutionizing healthcare access.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Featured Doctors Section */}
-      <section id="doctors" className="py-16 bg-white">
+      <section id="doctors" className="py-16">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-12">Featured Doctors</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredDoctors.map(doctor => (
-              <div key={doctor.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className="relative">
-                  <img src={doctor.image} alt={doctor.name} className="w-full h-64 object-cover" />
-                  {doctor.available ? (
-                    <span className="absolute top-4 right-4 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Available</span>
-                  ) : (
-                    <span className="absolute top-4 right-4 bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">Unavailable</span>
-                  )}
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold mb-2">{doctor.name}</h3>
-                  <p className="text-gray-600 mb-2">{doctor.specialization}</p>
-                  <p className="text-gray-600 mb-4">{doctor.location}</p>
-                  <div className="flex items-center mb-4">
-                    <div className="flex">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className={`w-4 h-4 ${i < Math.floor(doctor.rating) ? 'text-yellow-400' : 'text-gray-300'}`} fill={i < Math.floor(doctor.rating) ? 'currentColor' : 'none'} />
-                      ))}
+          {loading ? (
+            <div className="text-center text-gray-600">Loading doctors...</div>
+          ) : featuredDoctors.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {featuredDoctors.map((doctor) => (
+                <div key={doctor._id || doctor.id} className="bg-white rounded-lg shadow-md overflow-hidden transform hover:scale-105 transition duration-300">
+                  <img 
+                    src={doctor.profileImage ? `http://localhost:5000${doctor.profileImage}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=random`} 
+                    alt={doctor.name} 
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-4">
+                    <h3 className="text-xl font-semibold mb-1">{doctor.name}</h3>
+                    <p className="text-blue-600 mb-2">{doctor.specialization}</p>
+                    <p className="text-gray-600 text-sm mb-2">{doctor.location}</p>
+                    <div className="flex items-center mb-3">
+                      <Star className="text-yellow-400 w-5 h-5 mr-1" />
+                      <span className="text-gray-700 font-medium">{doctor.rating ? doctor.rating.toFixed(1) : 'N/A'}</span>
                     </div>
-                    <span className="ml-2 text-gray-600">{doctor.rating}</span>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${doctor.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {doctor.isAvailable ? 'Available' : 'Unavailable'}
+                    </span>
+                    <Link 
+                      to={`/doctor/${doctor._id}`} 
+                      className="mt-4 block w-full text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+                    >
+                      View Profile
+                    </Link>
                   </div>
-                  <Link to={`/doctor/${doctor.id}`} className="block text-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
-                    View Profile
-                  </Link>
                 </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="text-center mt-10">
-            <Link to="/doctors" className="text-blue-600 hover:text-blue-800 font-semibold">
-              View All Doctors →
-            </Link>
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-gray-600">No featured doctors available at the moment.</div>
+          )}
         </div>
       </section>
 
@@ -305,6 +346,76 @@ function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Contact Us Section */}
+      <section id="contact" className="py-16 bg-gray-50">
+        <div className="container mx-auto px-6 max-w-3xl">
+          <h2 className="text-3xl font-bold text-center mb-12">Contact Us</h2>
+          <form onSubmit={handleContactSubmit} className="bg-white p-8 rounded-lg shadow-md space-y-6">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                value={contactForm.name}
+                onChange={handleContactChange}
+                required
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Your Name"
+              />
+            </div>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={contactForm.email}
+                onChange={handleContactChange}
+                required
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="your.email@example.com"
+              />
+            </div>
+            <div>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+              <textarea
+                id="message"
+                name="message"
+                rows="4"
+                value={contactForm.message}
+                onChange={handleContactChange}
+                required
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Your message..."
+              ></textarea>
+            </div>
+            <div className="text-center">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="-ml-1 mr-2 h-5 w-5" />
+                    Send Message
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </section>
 

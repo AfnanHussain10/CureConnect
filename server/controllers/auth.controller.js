@@ -3,26 +3,83 @@ import Doctor from '../models/Doctor.model.js';
 import Patient from '../models/Patient.model.js';
 import crypto from 'crypto';
 import sendEmail from '../utils/sendEmail.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
-// Register user (patient/doctor)
+// Configure multer for profile image uploads (similar to patient.controller.js)
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/profile-images';
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    // Use user's future ID or a unique identifier if possible, otherwise use timestamp
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (extname && mimetype) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only image files (JPEG, PNG, GIF) are allowed!'), false);
+  }
+};
+
+export const uploadProfileImage = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: fileFilter
+}).single('profileImage'); // Field name must match FormData key
+
+// Register user (patient/doctor) - Now handles file uploads
 export const register = async (req, res) => {
+  // Note: Multer middleware (uploadProfileImage) should run *before* this controller
   try {
-    const { role, ...userData } = req.body;
-    console.log('Register attempt:', { role, userData });
+    const { role, ...userData } = req.body; // Text fields are in req.body
+    const profileImageFile = req.file; // Uploaded file is in req.file
+
+    console.log('Register attempt:', { role, userData, file: profileImageFile });
 
     // Validate role
     if (!['patient', 'doctor'].includes(role)) {
+      // If validation fails after upload, delete the potentially uploaded file
+      if (profileImageFile) {
+        fs.unlink(profileImageFile.path, (err) => {
+          if (err) console.error("Error deleting uploaded file after validation fail:", err);
+        });
+      }
       return res.status(400).json({ success: false, message: 'Invalid role specified' });
     }
+
+    // Prepare user data, including the image path if uploaded
+    const finalUserData = { 
+      ...userData, 
+      role: role,
+      // Store the relative path accessible via static serving
+      profileImage: profileImageFile ? `/uploads/profile-images/${profileImageFile.filename}` : undefined 
+    };
 
     // Create user based on role
     let user;
     if (role === 'doctor') {
-      console.log('Creating Doctor with data:', { ...userData, role: 'doctor' });
-      user = await Doctor.create({ ...userData, role: 'doctor' });
+      console.log('Creating Doctor with data:', finalUserData);
+      user = await Doctor.create(finalUserData);
     } else {
-      console.log('Creating Patient with data:', { ...userData, role: 'patient' });
-      user = await Patient.create({ ...userData, role: 'patient' });
+      console.log('Creating Patient with data:', finalUserData);
+      user = await Patient.create(finalUserData);
     }
 
     console.log('User created:', user);
@@ -37,14 +94,21 @@ export const register = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        profileImage: user.profileImage // Include image path in response if needed
       }
     });
   } catch (error) {
     console.error('Register error:', error);
+    // If user creation fails after upload, delete the uploaded file
+    if (req.file) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error("Error deleting uploaded file after DB error:", err);
+      });
+    }
     res.status(400).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Registration failed.',
       details: error.errors // Include validation errors if any
     });
   }

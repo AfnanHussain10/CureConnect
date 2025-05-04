@@ -56,9 +56,12 @@ const Navbar = () => {
             {isHomePage && (
               <>
                 <a href="#about" className="text-gray-700 hover:text-blue-600 px-3 py-2">About Us</a>
-                <a href="#doctors" className="text-gray-700 hover:text-blue-600 px-3 py-2">Doctors</a>
                 <a href="#how-it-works" className="text-gray-700 hover:text-blue-600 px-3 py-2">How It Works</a>
                 <a href="#contact" className="text-gray-700 hover:text-blue-600 px-3 py-2">Contact</a>
+                <Link to="/doctor-list" className={`flex items-center gap-1 px-3 py-2 rounded-md ${isActive('/doctor-list') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>
+                    <Users className="h-4 w-4" />
+                    <span>Browse Doctors</span>
+                </Link>
               </>
             )}
             
@@ -77,10 +80,12 @@ const Navbar = () => {
             ) : (
               <>
                 {!isHomePage && (
+                  <>
                   <Link to="/doctor-list" className={`flex items-center gap-1 px-3 py-2 rounded-md ${isActive('/doctor-list') ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>
-                    <Users className="h-4 w-4" />
-                    <span>Browse Doctors</span>
+                      <Users className="h-4 w-4" />
+                      <span>Browse Doctors</span>
                   </Link>
+                </>
                 )}
               </>
             )}

@@ -21,10 +21,12 @@ function PatientManagement() {
 
   // Fetch patients on component mount
   useEffect(() => {
-    fetchPatients();
-  }, []);
+    if (token) {
+      fetchPatients();
+    }
+  }, [token]);
 
-  const fetchPatients = async () => {
+  const fetchPatients = React.useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.getAllPatients(token); // Pass the token here
@@ -39,7 +41,7 @@ function PatientManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);

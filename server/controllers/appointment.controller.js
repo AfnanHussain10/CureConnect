@@ -89,6 +89,23 @@ export const createAppointment = async (req, res) => {
       });
     }
 
+    // Check if the requested day is in doctor's available days
+    const appointmentDay = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+    if (!doctor.availableDays.includes(appointmentDay)) {
+      return res.status(400).json({
+        success: false,
+        message: `Doctor is not available on ${appointmentDay}`
+      });
+    }
+
+    // Check if the requested time is in doctor's available time slots
+    if (!doctor.availableTimeSlots.includes(time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected time slot is not available for this doctor'
+      });
+    }
+
     // Check if time slot is available
     const existingAppointment = await Appointment.findOne({
       doctorId,

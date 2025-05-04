@@ -1,4 +1,5 @@
 import Patient from '../models/Patient.model.js';
+import Appointment from '../models/Appointment.model.js';
 import express from 'express';
 import path from 'path';
 
@@ -132,17 +133,26 @@ export const updatePatient = async (req, res) => {
   }
 };
 
-// Delete patient
+// Delete patient and associated appointments
 export const deletePatient = async (req, res) => {
   try {
-    const patient = await Patient.findById(req.params.id);
+    const patientId = req.params.id;
+    const patient = await Patient.findById(patientId);
+
     if (!patient) {
       return res.status(404).json({ message: 'Patient not found' });
     }
+
+    // Delete associated appointments
+    await Appointment.deleteMany({ patientId: patientId });
+
+    // Delete the patient
     await patient.deleteOne();
-    res.status(200).json({ message: 'Patient deleted successfully' });
+
+    res.status(200).json({ message: 'Patient and associated appointments deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error deleting patient:', error);
+    res.status(500).json({ message: 'Failed to delete patient: ' + error.message });
   }
 };
 

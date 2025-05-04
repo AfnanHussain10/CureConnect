@@ -15,12 +15,24 @@ export const loginUser = async (email, password) => {
   return data;
 };
 
-export const registerUser = async (userData, role) => {
-  console.log('Register request:', userData);
+export const registerUser = async (formData, role) => {
+  // When sending FormData, the browser automatically sets the Content-Type header
+  // to multipart/form-data with the correct boundary.
+  // Do not manually set Content-Type: application/json.
+  
+  // Append the role to the FormData
+  formData.append('role', role);
+
+  console.log('Register request (FormData):');
+  // Log FormData entries (optional, for debugging)
+  // for (let [key, value] of formData.entries()) { 
+  //   console.log(`${key}: ${value}`);
+  // }
+
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...userData, role })
+    // headers: { 'Content-Type': 'application/json' }, // Remove this header for FormData
+    body: formData // Send FormData directly
   });
   
   const data = await response.json();
@@ -161,6 +173,28 @@ export const updateReviewStatus = async (reviewId, status, token) => {
   }
 };
 
+// Contact Us API call
+export const sendContactEmail = async (contactData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/contact`, { // Assuming a /api/contact endpoint
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(contactData)
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to send message');
+    }
+    return data;
+  } catch (error) {
+    console.error('Send contact email error:', error);
+    throw error;
+  }
+};
+
 export const deleteReview = async (reviewId, token) => {
   try {
     const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}`, {
@@ -177,6 +211,28 @@ export const deleteReview = async (reviewId, token) => {
     return true;
   } catch (error) {
     console.error('Delete review error:', error);
+    throw error;
+  }
+};
+
+export const deleteDoctor = async (doctorId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/doctors/${doctorId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || 'Failed to delete doctor');
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Failed to delete patient:', error);
     throw error;
   }
 };
@@ -288,7 +344,7 @@ export const editAppointmentDetails = async (appointmentId, data, token) => {
   }
 };
 
-export const cancelAppointment = async (appointmentId, token) => {
+export const deleteAppointment = async (appointmentId, token) => {
   try {
     const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}`, {
       method: 'DELETE',
@@ -306,10 +362,10 @@ export const cancelAppointment = async (appointmentId, token) => {
     }
 
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Failed to cancel appointment');
+    if (!response.ok) throw new Error(data.message || 'Failed to delete appointment');
     return data;
   } catch (error) {
-    console.error('Cancel appointment error:', error);
+    console.error('Delete appointment error:', error);
     throw error;
   }
 };

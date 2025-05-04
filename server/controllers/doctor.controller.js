@@ -159,9 +159,20 @@ export const deleteDoctor = async (req, res) => {
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
+
+    // Delete all appointments associated with this doctor
+    const Appointment = mongoose.model('Appointment');
+    const deletedAppointments = await Appointment.deleteMany({ doctorId: doctor._id });
+
+    // Delete the doctor
     await doctor.deleteOne();
-    res.status(200).json({ message: 'Doctor deleted successfully' });
+
+    res.status(200).json({ 
+      message: 'Doctor deleted successfully',
+      deletedAppointments: deletedAppointments.deletedCount
+    });
   } catch (error) {
+    console.error('Delete doctor error:', error);
     res.status(500).json({ message: error.message });
   }
 };
